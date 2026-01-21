@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kade Test Gen - Enterprise Test Automation</title>
+    <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <div class="logo-icon-glass">
+                    <div class="logo-glass-inner">K</div>
+                    <div class="logo-glass-shine"></div>
+                </div>
+                <span>Kade Test Gen</span>
+            </a>
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="#generator">Generator</a></li>
+                    <li><a href="#resultsSection" id="resultsNavLink">Results</a></li>
+                    <li><a href="/docs">Docs</a></li>
+                    <li><button class="theme-toggle-btn" id="themeToggle" aria-label="Toggle theme"><i class="bi bi-moon-stars"></i></button></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1>Tests, Evolved.</h1>
+            <p>Transform requirements into production-ready test code. Analyze live pages or generate from specs.</p>
+        </section>
+
+        <!-- Main Mode Selection -->
+        <section id="generator" class="generator-panel">
+            <div class="mode-tabs">
+                <button class="mode-tab active" data-mode="analyze">
+                    <i class="bi bi-globe"></i>
+                    <span class="mode-tab-title">Analyze Live Page</span>
+                    <span class="mode-tab-desc">Generate BDD scenarios from any URL</span>
+                </button>
+                <button class="mode-tab" data-mode="generate">
+                    <i class="bi bi-code-slash"></i>
+                    <span class="mode-tab-title">Generate Test Code</span>
+                    <span class="mode-tab-desc">Create executable tests from requirements</span>
+                </button>
+            </div>
+
+            <!-- =====================================================
+                 MODE 1: ANALYZE LIVE PAGE (BDD Scenario Generator)
+                 ===================================================== -->
+            <div class="mode-content active" data-mode="analyze">
+                <div class="analyze-section">
+                    <!-- URL Input -->
+                    <div class="url-input-section">
+                        <div class="url-input-wrapper">
+                            <i class="bi bi-link-45deg url-icon"></i>
+                            <input type="text" class="url-input" id="liveUrlInput"
+                                   placeholder="Enter URL to analyze (e.g., https://example.com/login)">
+                            <button class="btn btn-primary btn-analyze" id="analyzeUrlBtn">
+                                <i class="bi bi-search"></i>
+                                <span>Analyze</span>
+                            </button>
+                        </div>
+                        <p class="url-hint">We'll analyze the page DOM and generate BDD scenarios based on actual elements found</p>
+                    </div>
+
+                    <!-- Analysis Progress -->
+                    <div class="analysis-progress" id="analysisProgress" style="display: none;">
+                        <div class="progress-content">
+                            <div class="spinner"></div>
+                            <span>Analyzing page structure...</span>
+                        </div>
+                    </div>
+
+                    <!-- Analysis Results -->
+                    <div class="analysis-results" id="analysisResults" style="display: none;">
+                        <!-- Quick Stats Bar -->
+                        <div class="stats-bar">
+                            <div class="stat-item">
+                                <i class="bi bi-bullseye"></i>
+                                <span class="stat-value" id="pagePurpose">-</span>
+                            </div>
+                            <div class="stat-divider"></div>
+                            <div class="stat-item">
+                                <i class="bi bi-cursor"></i>
+                                <span class="stat-label">Elements:</span>
+                                <span class="stat-value" id="elementsCount">-</span>
+                            </div>
+                            <div class="stat-divider"></div>
+                            <div class="stat-item">
+                                <i class="bi bi-ui-checks"></i>
+                                <span class="stat-label">Forms:</span>
+                                <span class="stat-value" id="formsCount">-</span>
+                            </div>
+                            <div class="stat-divider"></div>
+                            <div class="stat-item">
+                                <i class="bi bi-clock"></i>
+                                <span class="stat-value" id="analysisTime">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Two Column Layout: Insights + BDD Output -->
+                        <div class="analysis-columns">
+                            <!-- Left: Insights (Collapsible) -->
+                            <div class="insights-panel">
+                                <details class="insight-group" open>
+                                    <summary><i class="bi bi-diagram-3"></i> User Flows</summary>
+                                    <ul class="insight-list" id="inferredFlows"></ul>
+                                </details>
+                                <details class="insight-group">
+                                    <summary><i class="bi bi-exclamation-triangle"></i> Edge Cases</summary>
+                                    <ul class="insight-list" id="edgeCases"></ul>
+                                </details>
+                                <details class="insight-group">
+                                    <summary><i class="bi bi-shield-check"></i> Security Notes</summary>
+                                    <ul class="insight-list" id="securityConsiderations"></ul>
+                                </details>
+                            </div>
+
+                            <!-- Right: BDD Output (Primary Focus) -->
+                            <div class="bdd-panel">
+                                <div class="bdd-header">
+                                    <div class="bdd-title">
+                                        <i class="bi bi-file-earmark-code"></i>
+                                        <span>BDD Scenarios</span>
+                                        <span class="scenario-badge" id="scenarioCount">0</span>
+                                    </div>
+                                    <div class="bdd-actions">
+                                        <button class="icon-btn" id="copyBddBtn" title="Copy to clipboard">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                        <button class="icon-btn" id="downloadBddBtn" title="Download .feature file">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="bdd-output">
+                                    <pre><code class="language-gherkin" id="bddOutput"></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- =====================================================
+                 MODE 2: GENERATE TEST CODE (From Requirements)
+                 ===================================================== -->
+            <div class="mode-content" data-mode="generate" style="display: none;">
+                <!-- Source Selection -->
+                <div class="source-selector">
+                    <button class="source-btn active" data-source="document">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span>Upload Document</span>
+                    </button>
+                    <button class="source-btn" data-source="github">
+                        <i class="bi bi-github"></i>
+                        <span>GitHub</span>
+                    </button>
+                    <button class="source-btn" data-source="text">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Direct Input</span>
+                    </button>
+                </div>
+
+                <!-- Document Upload -->
+                <div class="source-content active" data-source="document">
+                    <div class="file-upload-zone" id="fileUpload">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                        <p><strong>Drop file here</strong> or click to browse</p>
+                        <span class="file-types">.docx, .doc, .txt</span>
+                        <div class="file-name" id="fileName"></div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".docx,.doc,.txt" style="display: none;">
+                </div>
+
+                <!-- GitHub Repository -->
+                <div class="source-content" data-source="github" style="display: none;">
+                    <div class="input-group">
+                        <label>Repository URL</label>
+                        <input type="text" class="form-input" id="repoUrl"
+                               placeholder="https://github.com/owner/repository">
+                    </div>
+                    <div class="input-group">
+                        <label>Access Token <span class="optional">(optional, for private repos)</span></label>
+                        <input type="password" class="form-input" id="githubToken"
+                               placeholder="ghp_xxxxxxxxxxxx">
+                    </div>
+                </div>
+
+                <!-- Direct Text Input -->
+                <div class="source-content" data-source="text" style="display: none;">
+                    <textarea class="requirements-input" id="textContent"
+                              placeholder="Paste your requirements, user stories, or test scenarios here...
+
+Example:
+Feature: User Authentication
+  Scenario: Valid login
+    Given the user is on the login page
+    When they enter valid credentials
+    Then they should see the dashboard"></textarea>
+                </div>
+
+                <!-- Test Configuration (Simplified) -->
+                <div class="config-section">
+                    <div class="config-header">
+                        <span class="config-title">Output Configuration</span>
+                    </div>
+                    <div class="config-grid">
+                        <!-- Test Type -->
+                        <div class="config-group">
+                            <label>Test Type</label>
+                            <div class="type-selector">
+                                <button class="type-btn active" data-type="UI">
+                                    <span class="type-icon">UI</span>
+                                    <span class="type-name">Selenium</span>
+                                </button>
+                                <button class="type-btn" data-type="API">
+                                    <span class="type-icon">API</span>
+                                    <span class="type-name">Rest Assured</span>
+                                </button>
+                                <button class="type-btn" data-type="MOBILE">
+                                    <span class="type-icon">MOB</span>
+                                    <span class="type-name">Appium</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Base Package -->
+                        <div class="config-group">
+                            <label>Base Package</label>
+                            <input type="text" class="config-input" id="basePackage"
+                                   value="com.enterprise.tests" placeholder="com.enterprise.tests">
+                        </div>
+
+                        <!-- Target URL (contextual) -->
+                        <div class="config-group" id="targetUrlGroup">
+                            <label id="targetUrlLabel">Application URL</label>
+                            <input type="text" class="config-input" id="applicationUrl"
+                                   placeholder="http://localhost:8080">
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options (Collapsed by default) -->
+                    <details class="advanced-options">
+                        <summary>
+                            <i class="bi bi-sliders"></i>
+                            <span>Advanced Options</span>
+                        </summary>
+                        <div class="advanced-grid">
+                            <div class="option-row">
+                                <label class="toggle-option">
+                                    <input type="checkbox" id="toggleNegative" checked>
+                                    <span class="toggle-switch"></span>
+                                    <span>Include negative tests</span>
+                                </label>
+                                <label class="toggle-option">
+                                    <input type="checkbox" id="toggleAssertions" checked>
+                                    <span class="toggle-switch"></span>
+                                    <span>Auto-generate assertions</span>
+                                </label>
+                            </div>
+                            <div class="option-row">
+                                <label class="toggle-option">
+                                    <input type="checkbox" id="toggleDynamic" checked>
+                                    <span class="toggle-switch"></span>
+                                    <span>Handle dynamic elements</span>
+                                </label>
+                                <label class="toggle-option">
+                                    <input type="checkbox" id="toggleUtilities" checked>
+                                    <span class="toggle-switch"></span>
+                                    <span>Generate utility classes</span>
+                                </label>
+                            </div>
+                            <div class="option-row">
+                                <label class="toggle-option copilot-toggle">
+                                    <input type="checkbox" id="toggleCopilot">
+                                    <span class="toggle-switch copilot-switch"></span>
+                                    <span><i class="bi bi-stars"></i> AI Copilot Enhancement</span>
+                                    <span class="copilot-badge" id="copilotBadge">Configure</span>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Generate Button -->
+                <div class="generate-action">
+                    <button class="btn btn-primary btn-generate" id="generateBtn">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                        <span>Generate Tests</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section">
+            <div class="results-header">
+                <h2 class="results-title">Generated Test Code</h2>
+                <div class="results-meta" id="resultsMeta"></div>
+            </div>
+            <div id="resultsContainer"></div>
+        </section>
+    </main>
+
+    <!-- Footer (Simplified) -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <div class="footer-logo-glass">
+                    <div class="footer-logo-inner">K</div>
+                    <div class="footer-logo-shine"></div>
+                </div>
+                <div>
+                    <h4>Kade Test Gen</h4>
+                    <p>Enterprise test automation</p>
+                </div>
+            </div>
+            <div class="footer-links">
+                <a href="/docs">Documentation</a>
+                <a href="/api-docs">API</a>
+                <span class="footer-divider">|</span>
+                <span class="footer-security"><i class="bi bi-shield-check"></i> Data stays in-house</span>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Kade Test Gen</p>
+        </div>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

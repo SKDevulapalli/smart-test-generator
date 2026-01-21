@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - Kade Test Gen</title>
+    <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .api-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .api-hero {
+            text-align: center;
+            padding: 2rem 0 3rem;
+        }
+
+        .api-hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .api-hero p {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+        }
+
+        .api-section {
+            background: var(--background-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .api-section h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .api-section h2 i {
+            color: var(--primary-color);
+        }
+
+        .api-section p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+
+        .endpoint-card {
+            background: var(--background-input);
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .method-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .method-badge.get {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+
+        .method-badge.post {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .endpoint-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9375rem;
+            color: var(--text-primary);
+        }
+
+        .endpoint-body {
+            padding: 1.25rem;
+        }
+
+        .endpoint-desc {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        .param-table th,
+        .param-table td {
+            padding: 0.625rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.875rem;
+        }
+
+        .param-table th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.6875rem;
+            letter-spacing: 0.05em;
+        }
+
+        .param-table td {
+            color: var(--text-secondary);
+        }
+
+        .param-name {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+        }
+
+        .param-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--primary-color);
+        }
+
+        .param-required {
+            color: #ef4444;
+            font-size: 0.75rem;
+        }
+
+        .param-optional {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .code-block {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8125rem;
+            color: #c9d1d9;
+            white-space: pre;
+        }
+
+        .code-block-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .response-section {
+            margin-top: 1.25rem;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.625rem;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9375rem;
+            margin-bottom: 1rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--primary-color);
+        }
+
+        .health-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .health-dot {
+            width: 12px;
+            height: 12px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .health-info {
+            flex: 1;
+        }
+
+        .health-info strong {
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .health-info span {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <div class="logo-icon-glass">
+                    <div class="logo-glass-inner">K</div>
+                    <div class="logo-glass-shine"></div>
+                </div>
+                <span>Kade Test Gen</span>
+            </a>
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="/#generator">Generator</a></li>
+                    <li><a href="/#resultsSection">Results</a></li>
+                    <li><a href="/docs">Docs</a></li>
+                    <li><a href="/api-docs" class="active">API</a></li>
+                    <li><button class="theme-toggle-btn" id="themeToggle" aria-label="Toggle theme"><i class="bi bi-moon-stars"></i></button></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="api-container">
+            <a href="/" class="back-link"><i class="bi bi-arrow-left"></i> Back to Generator</a>
+
+            <div class="api-hero">
+                <h1>API Reference</h1>
+                <p>Integrate Kade Test Gen into your CI/CD pipeline</p>
+            </div>
+
+            <!-- Health Status -->
+            <div class="health-status">
+                <div class="health-dot"></div>
+                <div class="health-info">
+                    <strong>Service Status: Operational</strong>
+                    <span>All systems running normally</span>
+                </div>
+            </div>
+
+            <!-- Overview -->
+            <section class="api-section">
+                <h2><i class="bi bi-info-circle"></i> Overview</h2>
+                <p>The Kade Test Gen API allows you to programmatically generate test automation code. All endpoints accept JSON or multipart form data and return JSON responses.</p>
+                <p><strong>Base URL:</strong> <code style="background: var(--background-input); padding: 0.125rem 0.5rem; border-radius: 4px;">http://localhost:8081</code></p>
+            </section>
+
+            <!-- Endpoints -->
+            <section class="api-section">
+                <h2><i class="bi bi-diagram-3"></i> Endpoints</h2>
+
+                <!-- Health Check -->
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge get">GET</span>
+                        <span class="endpoint-path">/api/health</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="endpoint-desc">Check service health and get version information.</p>
+
+                        <div class="response-section">
+                            <div class="code-block-label">Response <span class="status-badge">200 OK</span></div>
+                            <div class="code-block">
+<pre>{
+  "status": "UP",
+  "service": "Kade Test Gen",
+  "version": "1.0.0",
+  "frameworks": {
+    "selenium": "4.16.1",
+    "restAssured": "5.4.0"
+  }
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generate from Document -->
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <span class="endpoint-path">/api/generate/document</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="endpoint-desc">Generate test code from an uploaded Word document (.docx, .doc, .txt).</p>
+
+                        <div class="code-block-label">Parameters (multipart/form-data)</div>
+                        <table class="param-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">file</span></td>
+                                    <td><span class="param-type">file</span></td>
+                                    <td><span class="param-required">Required</span></td>
+                                    <td>Word document with test requirements</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">testType</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required">Required</span></td>
+                                    <td>UI, API, or MOBILE</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">basePackage</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-optional">Optional</span></td>
+                                    <td>Java package name (default: com.enterprise.tests)</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">testCategory</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-optional">Optional</span></td>
+                                    <td>smoke, regression, negative, boundary, security</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">coverageLevel</span></td>
+                                    <td><span class="param-type">integer</span></td>
+                                    <td><span class="param-optional">Optional</span></td>
+                                    <td>1-5 (minimal to extensive)</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">waitStrategy</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-optional">Optional</span></td>
+                                    <td>implicit, explicit, smart</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Generate from GitHub -->
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <span class="endpoint-path">/api/generate/github</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="endpoint-desc">Generate test code from a GitHub repository containing requirement documents.</p>
+
+                        <div class="code-block-label">Parameters (multipart/form-data)</div>
+                        <table class="param-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">repositoryUrl</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required">Required</span></td>
+                                    <td>GitHub repository URL</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">githubToken</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-optional">Optional</span></td>
+                                    <td>Personal access token for private repos</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">testType</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required">Required</span></td>
+                                    <td>UI, API, or MOBILE</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Generate from Text -->
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <span class="endpoint-path">/api/generate/text</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="endpoint-desc">Generate test code from direct text input.</p>
+
+                        <div class="code-block-label">Request Body (application/json)</div>
+                        <div class="code-block">
+<pre>{
+  "content": "Scenario: User Login\nGiven the user is on the login page\nWhen the user enters valid credentials\nThen the user should see the dashboard",
+  "testType": "UI",
+  "basePackage": "com.mycompany.tests",
+  "applicationUrl": "https://myapp.example.com",
+  "testCategory": "smoke",
+  "coverageLevel": 3,
+  "assertionStrictness": "medium",
+  "waitStrategy": "explicit",
+  "generateNegative": true,
+  "addAssertions": true,
+  "handleDynamic": true,
+  "generateUtilities": true
+}</pre>
+                        </div>
+
+                        <div class="response-section">
+                            <div class="code-block-label">Response <span class="status-badge">200 OK</span></div>
+                            <div class="code-block">
+<pre>{
+  "success": true,
+  "message": "Generated 3 test artifacts",
+  "totalTests": 3,
+  "generationTimeMs": 245,
+  "frameworkInfo": "Selenium WebDriver 4.16.1",
+  "testCases": [
+    {
+      "testId": "TC-000-A",
+      "testName": "BasePage.java",
+      "testType": "UI",
+      "scenarioDescription": "Base Page Object class",
+      "automationCode": "package com.mycompany.tests.pages;...",
+      "className": "BasePage",
+      "packageName": "com.mycompany.tests.pages"
+    }
+  ],
+  "warnings": []
+}</pre>
+                            </div>
+                        </div>
+
+                        <div class="response-section">
+                            <div class="code-block-label">Error Response <span class="status-badge error">400 Bad Request</span></div>
+                            <div class="code-block">
+<pre>{
+  "success": false,
+  "message": "Error generating tests: Invalid content format",
+  "warnings": ["Exception: IllegalArgumentException"]
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List GitHub Files -->
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge get">GET</span>
+                        <span class="endpoint-path">/api/github/files</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="endpoint-desc">List requirement files in a GitHub repository.</p>
+
+                        <div class="code-block-label">Query Parameters</div>
+                        <table class="param-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">repositoryUrl</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required">Required</span></td>
+                                    <td>GitHub repository URL</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">githubToken</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-optional">Optional</span></td>
+                                    <td>Personal access token</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="response-section">
+                            <div class="code-block-label">Response <span class="status-badge">200 OK</span></div>
+                            <div class="code-block">
+<pre>{
+  "success": true,
+  "files": [
+    "docs/requirements.md",
+    "specs/login-feature.docx",
+    "tests/api-spec.txt"
+  ]
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Example Usage -->
+            <section class="api-section">
+                <h2><i class="bi bi-code-slash"></i> Example Usage</h2>
+
+                <div class="code-block-label">cURL Example</div>
+                <div class="code-block">
+<pre>curl -X POST http://localhost:8081/api/generate/text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Scenario: Login Test\nGiven user on login page\nWhen enters credentials\nThen sees dashboard",
+    "testType": "UI",
+    "basePackage": "com.example.tests"
+  }'</pre>
+                </div>
+
+                <div class="code-block-label">JavaScript Fetch</div>
+                <div class="code-block">
+<pre>const response = await fetch('/api/generate/text', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    content: 'Scenario: Login Test...',
+    testType: 'UI',
+    basePackage: 'com.example.tests'
+  })
+});
+const result = await response.json();</pre>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <div class="footer-brand">
+                    <div class="footer-logo-glass">
+                        <div class="footer-logo-inner">K</div>
+                        <div class="footer-logo-shine"></div>
+                    </div>
+                    <div>
+                        <h4>Kade Test Gen</h4>
+                        <p>Enterprise-grade test automation</p>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-section">
+                <h5>Technology Stack</h5>
+                <ul class="footer-list">
+                    <li>Selenium 4.16.1</li>
+                    <li>Rest Assured 5.4.0</li>
+                    <li>Java 17+</li>
+                    <li>Page Object Model</li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Features</h5>
+                <ul class="footer-list">
+                    <li><a href="/">Test Generator</a></li>
+                    <li><a href="/docs">Documentation</a></li>
+                    <li><a href="/api-docs">API Reference</a></li>
+                    <li>GitHub Integration</li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Security</h5>
+                <p class="footer-security">Data stays in-house<br>No external storage<br>Enterprise-grade encryption</p>
+            </div>
+        </div>
+        <div class="footer-divider"></div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Kade Test Gen. Enterprise-grade test automation platform.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const saved = localStorage.getItem('theme');
+            const isDark = saved ? saved === 'dark' : true;
+            setTheme(isDark ? 'dark' : 'light');
+        }
+
+        function setTheme(theme) {
+            const isDark = theme === 'dark';
+            document.documentElement.classList.toggle('light-theme', !isDark);
+            localStorage.setItem('theme', theme);
+            const toggle = document.getElementById('themeToggle');
+            if (toggle) {
+                const icon = toggle.querySelector('i');
+                if (icon) {
+                    icon.className = isDark ? 'bi bi-moon-stars' : 'bi bi-sun';
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            const toggle = document.getElementById('themeToggle');
+            if (toggle) {
+                toggle.addEventListener('click', () => {
+                    const current = localStorage.getItem('theme') || 'dark';
+                    setTheme(current === 'dark' ? 'light' : 'dark');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

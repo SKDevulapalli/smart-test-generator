@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Kade Test Gen</title>
+    <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .docs-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .docs-hero {
+            text-align: center;
+            padding: 2rem 0 3rem;
+        }
+
+        .docs-hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .docs-hero p {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+        }
+
+        .docs-section {
+            background: var(--background-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .docs-section h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .docs-section h2 i {
+            color: var(--primary-color);
+        }
+
+        .docs-section h3 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        .docs-section p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+
+        .docs-section ul, .docs-section ol {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+
+        .docs-section li {
+            margin-bottom: 0.5rem;
+        }
+
+        .code-example {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .code-example pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: #c9d1d9;
+            white-space: pre-wrap;
+        }
+
+        .step-card {
+            display: flex;
+            gap: 1rem;
+            padding: 1.25rem;
+            background: var(--background-input);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .step-number {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .step-content h4 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.375rem;
+        }
+
+        .step-content p {
+            font-size: 0.9375rem;
+            margin: 0;
+        }
+
+        .format-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        .format-table th,
+        .format-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .format-table th {
+            background: var(--background-input);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .format-table td {
+            color: var(--text-secondary);
+        }
+
+        .format-table code {
+            background: var(--background-input);
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8125rem;
+        }
+
+        .tip-box {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+        }
+
+        .tip-box strong {
+            color: var(--success-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .tip-box p {
+            margin: 0;
+            font-size: 0.9375rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9375rem;
+            margin-bottom: 1rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <div class="logo-icon-glass">
+                    <div class="logo-glass-inner">K</div>
+                    <div class="logo-glass-shine"></div>
+                </div>
+                <span>Kade Test Gen</span>
+            </a>
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="/#generator">Generator</a></li>
+                    <li><a href="/#resultsSection">Results</a></li>
+                    <li><a href="/docs" class="active">Docs</a></li>
+                    <li><a href="/api-docs">API</a></li>
+                    <li><button class="theme-toggle-btn" id="themeToggle" aria-label="Toggle theme"><i class="bi bi-moon-stars"></i></button></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="docs-container">
+            <a href="/" class="back-link"><i class="bi bi-arrow-left"></i> Back to Generator</a>
+
+            <div class="docs-hero">
+                <h1>Documentation</h1>
+                <p>Learn how to create test cases and use Kade Test Gen effectively</p>
+            </div>
+
+            <!-- How to Write Test Cases -->
+            <section class="docs-section">
+                <h2><i class="bi bi-file-earmark-text"></i> How to Write Test Cases</h2>
+                <p>Kade Test Gen understands various formats for test case requirements. Here are the supported formats and best practices for writing effective test cases.</p>
+
+                <h3>Gherkin/BDD Format (Recommended)</h3>
+                <p>The most reliable format for UI and integration tests:</p>
+                <div class="code-example">
+<pre>Feature: User Login
+
+Scenario: Successful login with valid credentials
+  Given the user is on the login page
+  When the user enters username "testuser@example.com"
+  And the user enters password "SecurePass123"
+  And the user clicks the login button
+  Then the user should be redirected to the dashboard
+  And the welcome message should display "Welcome, testuser"</pre>
+                </div>
+
+                <h3>Test Case Format</h3>
+                <p>A structured format for explicit test steps:</p>
+                <div class="code-example">
+<pre>Test Case: Verify User Registration
+Preconditions:
+  - User is not logged in
+  - Registration page is accessible
+
+Test Steps:
+  1. Navigate to /register
+  2. Enter "John Doe" in the name field
+  3. Enter "john@example.com" in the email field
+  4. Enter "Password123!" in the password field
+  5. Click the "Register" button
+
+Expected Results:
+  - User account is created
+  - Confirmation email is sent
+  - User is redirected to welcome page</pre>
+                </div>
+
+                <h3>API Test Format</h3>
+                <p>For REST API test generation:</p>
+                <div class="code-example">
+<pre>API Test: Create User Endpoint
+Endpoint: POST /api/users
+Headers:
+  - Content-Type: application/json
+  - Authorization: Bearer {token}
+
+Request Body:
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "role": "user"
+}
+
+Expected Response:
+  - Status: 201 Created
+  - Body contains "id" field
+  - Body contains "createdAt" timestamp</pre>
+                </div>
+
+                <h3>Format Reference</h3>
+                <table class="format-table">
+                    <thead>
+                        <tr>
+                            <th>Keyword</th>
+                            <th>Purpose</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Given</code></td>
+                            <td>Precondition / initial state</td>
+                            <td>Given the user is logged in</td>
+                        </tr>
+                        <tr>
+                            <td><code>When</code></td>
+                            <td>Action performed</td>
+                            <td>When the user clicks "Submit"</td>
+                        </tr>
+                        <tr>
+                            <td><code>Then</code></td>
+                            <td>Expected outcome</td>
+                            <td>Then a success message appears</td>
+                        </tr>
+                        <tr>
+                            <td><code>And</code></td>
+                            <td>Additional step</td>
+                            <td>And the form is cleared</td>
+                        </tr>
+                        <tr>
+                            <td><code>Scenario</code></td>
+                            <td>Test case title</td>
+                            <td>Scenario: Validate login form</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="tip-box">
+                    <strong><i class="bi bi-lightbulb"></i> Pro Tip</strong>
+                    <p>Include specific element identifiers (IDs, class names, or text) in your requirements for more accurate locator generation. Example: "click the button with id='submit-btn'"</p>
+                </div>
+            </section>
+
+            <!-- How to Use the Tool -->
+            <section class="docs-section">
+                <h2><i class="bi bi-play-circle"></i> How to Use Kade Test Gen</h2>
+                <p>Follow these simple steps to generate production-ready test automation code:</p>
+
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Choose Your Input Source</h4>
+                        <p>Select from Word Document upload, GitHub repository, or direct text input. Each source works with the same test case formats.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>Select Test Type</h4>
+                        <p>Choose UI Tests (Selenium), API Tests (Rest Assured), or Mobile Tests (Appium) based on your automation needs.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>Configure Controls Panel</h4>
+                        <p>Set test category, coverage level, assertion strictness, and wait strategy. Enable/disable generation options as needed.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h4>Set Advanced Options (Optional)</h4>
+                        <p>Expand Advanced Configuration to set base package name, application URL, or API base URL for your project.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h4>Generate Tests</h4>
+                        <p>Click "Generate Tests" and wait for processing. Your test cases will appear in the Results section with full Java code.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <h4>Download or Copy Code</h4>
+                        <p>Each generated test has Copy and Download buttons. Copy code to clipboard or download as .java files for your project.</p>
+                    </div>
+                </div>
+
+                <h3>Control Panel Options Explained</h3>
+                <table class="format-table">
+                    <thead>
+                        <tr>
+                            <th>Option</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Test Category</strong></td>
+                            <td>Tags tests as Smoke, Regression, Negative, Boundary, or Security for organization</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Coverage Level</strong></td>
+                            <td>Controls test thoroughness from Minimal (happy path) to Extensive (edge cases)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Assertion Strictness</strong></td>
+                            <td>Loose (basic checks), Medium (standard), Strict (comprehensive validation)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Wait Strategy</strong></td>
+                            <td>Implicit (simple timeouts), Explicit (condition-based), Smart AI (adaptive waits)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Negative Tests</strong></td>
+                            <td>Generate tests for invalid inputs and error scenarios</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Auto Assertions</strong></td>
+                            <td>Automatically add appropriate assertions based on test context</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Dynamic Elements</strong></td>
+                            <td>Add retry mechanisms and stability checks for dynamic content</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Reusable Utilities</strong></td>
+                            <td>Generate helper methods and utility functions</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Best Practices -->
+            <section class="docs-section">
+                <h2><i class="bi bi-award"></i> Best Practices</h2>
+
+                <h3>Writing Effective Requirements</h3>
+                <ul>
+                    <li><strong>Be specific:</strong> Include exact field names, button labels, and expected values</li>
+                    <li><strong>One scenario per test:</strong> Keep test cases focused on a single behavior</li>
+                    <li><strong>Include test data:</strong> Specify actual values for inputs, not just descriptions</li>
+                    <li><strong>Define clear outcomes:</strong> State exactly what should happen after each action</li>
+                </ul>
+
+                <h3>Organizing Your Tests</h3>
+                <ul>
+                    <li>Use consistent naming conventions (Feature_Scenario_Condition)</li>
+                    <li>Group related tests together in your requirements document</li>
+                    <li>Include preconditions for test independence</li>
+                    <li>Use test categories (@Tag) for selective test execution</li>
+                </ul>
+
+                <div class="tip-box">
+                    <strong><i class="bi bi-info-circle"></i> Integration Tip</strong>
+                    <p>Generated tests use the Page Object Model pattern. Place BasePage in your pages package and BaseTest in your tests package. Individual test classes extend BaseTest automatically.</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <div class="footer-brand">
+                    <div class="footer-logo-glass">
+                        <div class="footer-logo-inner">K</div>
+                        <div class="footer-logo-shine"></div>
+                    </div>
+                    <div>
+                        <h4>Kade Test Gen</h4>
+                        <p>Enterprise-grade test automation</p>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-section">
+                <h5>Technology Stack</h5>
+                <ul class="footer-list">
+                    <li>Selenium 4.16.1</li>
+                    <li>Rest Assured 5.4.0</li>
+                    <li>Java 17+</li>
+                    <li>Page Object Model</li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Features</h5>
+                <ul class="footer-list">
+                    <li><a href="/">Test Generator</a></li>
+                    <li><a href="/docs">Documentation</a></li>
+                    <li><a href="/api-docs">API Reference</a></li>
+                    <li>GitHub Integration</li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Security</h5>
+                <p class="footer-security">Data stays in-house<br>No external storage<br>Enterprise-grade encryption</p>
+            </div>
+        </div>
+        <div class="footer-divider"></div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Kade Test Gen. Enterprise-grade test automation platform.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const saved = localStorage.getItem('theme');
+            const isDark = saved ? saved === 'dark' : true;
+            setTheme(isDark ? 'dark' : 'light');
+        }
+
+        function setTheme(theme) {
+            const isDark = theme === 'dark';
+            document.documentElement.classList.toggle('light-theme', !isDark);
+            localStorage.setItem('theme', theme);
+            const toggle = document.getElementById('themeToggle');
+            if (toggle) {
+                const icon = toggle.querySelector('i');
+                if (icon) {
+                    icon.className = isDark ? 'bi bi-moon-stars' : 'bi bi-sun';
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            const toggle = document.getElementById('themeToggle');
+            if (toggle) {
+                toggle.addEventListener('click', () => {
+                    const current = localStorage.getItem('theme') || 'dark';
+                    setTheme(current === 'dark' ? 'light' : 'dark');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
