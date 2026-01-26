@@ -56,13 +56,13 @@ public class WebPageAnalyzerService {
         WebDriver driver = null;
         try {
             driver = new ChromeDriver(options);
-            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(20));
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(2));
 
             driver.get(url);
 
-            // Wait for page to stabilize
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            // Wait for page to stabilize - reduced timeout for faster response
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
             wait.until(d -> ((JavascriptExecutor) d)
                     .executeScript("return document.readyState").equals("complete"));
 
@@ -109,11 +109,37 @@ public class WebPageAnalyzerService {
                     .build();
 
         } catch (Exception e) {
-            warnings.add("Analysis error: " + e.getMessage());
+            String errorMessage = e.getMessage();
+            String errorType = e.getClass().getSimpleName();
+
+            // Provide more helpful error messages for common issues
+            String userFriendlyMessage;
+            if (errorMessage != null && (errorMessage.contains("ChromeDriver") ||
+                    errorMessage.contains("chrome") || errorMessage.contains("Chrome"))) {
+                userFriendlyMessage = "Chrome browser is not installed or configured. " +
+                        "The live page analysis feature requires Chrome to be installed on the server.";
+                warnings.add("Chrome/ChromeDriver error: " + errorMessage);
+            } else if (errorMessage != null && errorMessage.contains("timeout")) {
+                userFriendlyMessage = "Page load timed out. The target URL may be slow to respond or unreachable.";
+                warnings.add("Timeout error: " + errorMessage);
+            } else if (errorMessage != null && errorMessage.contains("ERR_NAME_NOT_RESOLVED")) {
+                userFriendlyMessage = "Could not resolve the URL. Please check that the URL is correct.";
+                warnings.add("DNS resolution error: " + errorMessage);
+            } else {
+                userFriendlyMessage = "Failed to analyze page: " + errorMessage;
+                warnings.add("Analysis error (" + errorType + "): " + errorMessage);
+            }
+
+            // Log the full error for debugging
+            System.err.println("[WebPageAnalyzer] Error analyzing URL: " + url);
+            System.err.println("[WebPageAnalyzer] Exception type: " + errorType);
+            System.err.println("[WebPageAnalyzer] Message: " + errorMessage);
+            e.printStackTrace();
+
             return PageAnalysis.builder()
                     .url(url)
-                    .pagePurpose("unknown")
-                    .pageDescription("Failed to analyze page: " + e.getMessage())
+                    .pagePurpose("error")
+                    .pageDescription(userFriendlyMessage)
                     .elements(Collections.emptyList())
                     .forms(Collections.emptyList())
                     .navigationLinks(Collections.emptyList())
@@ -133,9 +159,249 @@ public class WebPageAnalyzerService {
     }
 
     /**
-     * Extract all interactive elements from the page.
+     * Extract all interactive elements from the page using optimized batch JavaScript extraction.
      */
     private List<PageElement> extractInteractiveElements(WebDriver driver) {
+        List<PageElement> elements = new ArrayList<>();
+
+        try {
+            // Use JavaScript to extract all elements in one call for better performance
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> batchElements = (List<Map<String, Object>>) ((JavascriptExecutor) driver)
+                .executeScript(BATCH_ELEMENT_EXTRACTION_SCRIPT);
+
+            if (batchElements != null) {
+                for (Map<String, Object> elData : batchElements) {
+                    try {
+                        PageElement element = buildPageElementFromMap(elData, driver);
+                        if (element != null) {
+                            elements.add(element);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception e) {
+            // Fallback to traditional extraction if batch fails
+            elements.addAll(extractInputs(driver));
+            elements.addAll(extractButtons(driver));
+            elements.addAll(extractSelects(driver));
+            elements.addAll(extractTextareas(driver));
+            elements.addAll(extractRoleButtons(driver));
+        }
+
+        return elements;
+    }
+
+    /**
+     * JavaScript for batch element extraction - significantly faster than individual Selenium calls.
+     */
+    private static final String BATCH_ELEMENT_EXTRACTION_SCRIPT = """
+        (function() {
+            var results = [];
+            var maxElements = 100; // Limit to prevent slow pages
+
+            function getLabelFor(el) {
+                if (el.id) {
+                    var label = document.querySelector('label[for="' + el.id + '"]');
+                    if (label) return label.textContent.trim();
+                }
+                var parent = el.closest('label');
+                if (parent) return parent.textContent.trim();
+                return null;
+            }
+
+            function getDataAttributes(el) {
+                var data = {};
+                Array.from(el.attributes).forEach(function(attr) {
+                    if (attr.name.startsWith('data-')) {
+                        data[attr.name.substring(5)] = attr.value;
+                    }
+                });
+                return data;
+            }
+
+            // Extract inputs (excluding hidden)
+            var inputs = document.querySelectorAll('input:not([type="hidden"])');
+            for (var i = 0; i < Math.min(inputs.length, maxElements); i++) {
+                var el = inputs[i];
+                results.push({
+                    type: 'input',
+                    inputType: el.type || 'text',
+                    id: el.id || null,
+                    name: el.name || null,
+                    placeholder: el.placeholder || null,
+                    ariaLabel: el.getAttribute('aria-label'),
+                    label: getLabelFor(el),
+                    required: el.required,
+                    pattern: el.pattern || null,
+                    minLength: el.minLength > 0 ? el.minLength : null,
+                    maxLength: el.maxLength > 0 ? el.maxLength : null,
+                    min: el.min || null,
+                    max: el.max || null,
+                    cssClasses: el.className || null,
+                    role: el.getAttribute('role'),
+                    dataAttributes: getDataAttributes(el)
+                });
+            }
+
+            // Extract buttons
+            var buttons = document.querySelectorAll('button');
+            for (var i = 0; i < Math.min(buttons.length, maxElements); i++) {
+                var el = buttons[i];
+                results.push({
+                    type: 'button',
+                    inputType: el.type || 'button',
+                    id: el.id || null,
+                    name: el.name || null,
+                    visibleText: el.textContent.trim(),
+                    ariaLabel: el.getAttribute('aria-label'),
+                    cssClasses: el.className || null,
+                    dataAttributes: getDataAttributes(el)
+                });
+            }
+
+            // Extract selects
+            var selects = document.querySelectorAll('select');
+            for (var i = 0; i < Math.min(selects.length, maxElements); i++) {
+                var el = selects[i];
+                results.push({
+                    type: 'select',
+                    id: el.id || null,
+                    name: el.name || null,
+                    ariaLabel: el.getAttribute('aria-label'),
+                    label: getLabelFor(el),
+                    required: el.required,
+                    cssClasses: el.className || null,
+                    dataAttributes: getDataAttributes(el)
+                });
+            }
+
+            // Extract textareas
+            var textareas = document.querySelectorAll('textarea');
+            for (var i = 0; i < Math.min(textareas.length, maxElements); i++) {
+                var el = textareas[i];
+                results.push({
+                    type: 'textarea',
+                    id: el.id || null,
+                    name: el.name || null,
+                    placeholder: el.placeholder || null,
+                    ariaLabel: el.getAttribute('aria-label'),
+                    label: getLabelFor(el),
+                    required: el.required,
+                    minLength: el.minLength > 0 ? el.minLength : null,
+                    maxLength: el.maxLength > 0 ? el.maxLength : null,
+                    cssClasses: el.className || null,
+                    dataAttributes: getDataAttributes(el)
+                });
+            }
+
+            // Extract role=button elements (excluding actual buttons)
+            var roleButtons = document.querySelectorAll('[role="button"]:not(button)');
+            for (var i = 0; i < Math.min(roleButtons.length, maxElements); i++) {
+                var el = roleButtons[i];
+                results.push({
+                    type: 'role-button',
+                    id: el.id || null,
+                    visibleText: el.textContent.trim(),
+                    ariaLabel: el.getAttribute('aria-label'),
+                    role: 'button',
+                    cssClasses: el.className || null,
+                    dataAttributes: getDataAttributes(el)
+                });
+            }
+
+            return results;
+        })();
+        """;
+
+    /**
+     * Build PageElement from JavaScript extraction map.
+     */
+    private PageElement buildPageElementFromMap(Map<String, Object> data, WebDriver driver) {
+        String type = (String) data.get("type");
+        String inputType = (String) data.get("inputType");
+        String id = (String) data.get("id");
+        String name = (String) data.get("name");
+        String placeholder = (String) data.get("placeholder");
+        String ariaLabel = (String) data.get("ariaLabel");
+        String label = (String) data.get("label");
+        String visibleText = (String) data.get("visibleText");
+        Boolean required = data.get("required") instanceof Boolean ? (Boolean) data.get("required") : false;
+        String pattern = (String) data.get("pattern");
+        String cssClasses = (String) data.get("cssClasses");
+        String role = (String) data.get("role");
+
+        Integer minLength = data.get("minLength") instanceof Number ? ((Number) data.get("minLength")).intValue() : null;
+        Integer maxLength = data.get("maxLength") instanceof Number ? ((Number) data.get("maxLength")).intValue() : null;
+        String min = (String) data.get("min");
+        String max = (String) data.get("max");
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> dataAttributes = data.get("dataAttributes") instanceof Map
+                ? convertToStringMap((Map<String, Object>) data.get("dataAttributes"))
+                : new HashMap<>();
+
+        String semanticName = inferSemanticName(type, id, name, placeholder, label, ariaLabel);
+        if (semanticName == null && visibleText != null && !visibleText.isEmpty()) {
+            semanticName = visibleText;
+        }
+
+        String recommendedLocator = generateRecommendedLocatorFromData(id, name, ariaLabel, visibleText, label);
+
+        return PageElement.builder()
+                .type(type)
+                .inputType(inputType)
+                .id(id)
+                .name(name)
+                .placeholder(placeholder)
+                .ariaLabel(ariaLabel)
+                .label(label)
+                .visibleText(visibleText)
+                .required(required)
+                .validationPattern(pattern)
+                .minLength(minLength)
+                .maxLength(maxLength)
+                .minValue(min)
+                .maxValue(max)
+                .cssClasses(cssClasses)
+                .role(role)
+                .semanticName(semanticName)
+                .recommendedLocator(recommendedLocator)
+                .dataAttributes(dataAttributes)
+                .build();
+    }
+
+    private Map<String, String> convertToStringMap(Map<String, Object> map) {
+        Map<String, String> result = new HashMap<>();
+        if (map != null) {
+            map.forEach((k, v) -> result.put(k, v != null ? String.valueOf(v) : null));
+        }
+        return result;
+    }
+
+    private String generateRecommendedLocatorFromData(String id, String name, String ariaLabel, String text, String label) {
+        if (id != null && !id.isEmpty()) {
+            return "By.id(\"" + id + "\")";
+        }
+        if (ariaLabel != null && !ariaLabel.isEmpty()) {
+            return "By.cssSelector(\"[aria-label='" + ariaLabel + "']\")";
+        }
+        if (name != null && !name.isEmpty()) {
+            return "By.name(\"" + name + "\")";
+        }
+        if (text != null && !text.isEmpty()) {
+            return "By.xpath(\"//*[contains(text(),'" + text + "')]\")";
+        }
+        if (label != null && !label.isEmpty()) {
+            return "By.xpath(\"//label[contains(text(),'" + label + "')]/following::input[1]\")";
+        }
+        return "// Custom locator needed";
+    }
+
+    /**
+     * Extract all interactive elements from the page (fallback method).
+     */
+    private List<PageElement> extractInteractiveElementsFallback(WebDriver driver) {
         List<PageElement> elements = new ArrayList<>();
 
         // Input elements
@@ -408,36 +674,87 @@ public class WebPageAnalyzerService {
     }
 
     /**
-     * Extract navigation links.
+     * Extract navigation links using optimized batch JavaScript extraction.
      */
     private List<LinkInfo> extractLinks(WebDriver driver, String baseUrl) {
         List<LinkInfo> links = new ArrayList<>();
-        List<WebElement> anchorElements = driver.findElements(By.tagName("a"));
-
         String baseDomain = extractDomain(baseUrl);
 
-        for (WebElement anchor : anchorElements) {
-            try {
-                String href = anchor.getAttribute("href");
-                String text = anchor.getText().trim();
+        try {
+            // Use JavaScript to extract all links in one call
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> batchLinks = (List<Map<String, Object>>) ((JavascriptExecutor) driver)
+                .executeScript(BATCH_LINK_EXTRACTION_SCRIPT);
 
-                if (href == null || href.isEmpty() || href.startsWith("#") || href.startsWith("javascript:")) {
-                    continue;
+            if (batchLinks != null) {
+                for (Map<String, Object> linkData : batchLinks) {
+                    String href = (String) linkData.get("href");
+                    String text = (String) linkData.get("text");
+                    String ariaLabel = (String) linkData.get("ariaLabel");
+
+                    if (href == null || href.isEmpty() || href.startsWith("#") || href.startsWith("javascript:")) {
+                        continue;
+                    }
+
+                    boolean isInternal = href.contains(baseDomain) || href.startsWith("/");
+                    String displayText = (text != null && !text.isEmpty()) ? text : ariaLabel;
+                    String purpose = inferLinkPurpose(displayText, href);
+
+                    links.add(LinkInfo.builder()
+                            .text(displayText)
+                            .href(href)
+                            .internal(isInternal)
+                            .purpose(purpose)
+                            .build());
                 }
+            }
+        } catch (Exception e) {
+            // Fallback to traditional extraction
+            List<WebElement> anchorElements = driver.findElements(By.tagName("a"));
+            for (WebElement anchor : anchorElements) {
+                try {
+                    String href = anchor.getAttribute("href");
+                    String text = anchor.getText().trim();
 
-                boolean isInternal = href.contains(baseDomain) || href.startsWith("/");
-                String purpose = inferLinkPurpose(text, href);
+                    if (href == null || href.isEmpty() || href.startsWith("#") || href.startsWith("javascript:")) {
+                        continue;
+                    }
 
-                links.add(LinkInfo.builder()
-                        .text(text.isEmpty() ? anchor.getAttribute("aria-label") : text)
-                        .href(href)
-                        .internal(isInternal)
-                        .purpose(purpose)
-                        .build());
-            } catch (StaleElementReferenceException ignored) {}
+                    boolean isInternal = href.contains(baseDomain) || href.startsWith("/");
+                    String purpose = inferLinkPurpose(text, href);
+
+                    links.add(LinkInfo.builder()
+                            .text(text.isEmpty() ? anchor.getAttribute("aria-label") : text)
+                            .href(href)
+                            .internal(isInternal)
+                            .purpose(purpose)
+                            .build());
+                } catch (StaleElementReferenceException ignored) {}
+            }
         }
         return links;
     }
+
+    /**
+     * JavaScript for batch link extraction.
+     */
+    private static final String BATCH_LINK_EXTRACTION_SCRIPT = """
+        (function() {
+            var results = [];
+            var maxLinks = 50; // Limit to prevent slow pages
+            var anchors = document.querySelectorAll('a[href]');
+
+            for (var i = 0; i < Math.min(anchors.length, maxLinks); i++) {
+                var el = anchors[i];
+                results.push({
+                    href: el.href,
+                    text: el.textContent.trim(),
+                    ariaLabel: el.getAttribute('aria-label')
+                });
+            }
+            return results;
+        })();
+        """;
 
     /**
      * Infer the purpose of the page based on various signals.

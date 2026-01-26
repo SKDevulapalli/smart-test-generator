@@ -23,6 +23,11 @@ public class BDDScenarioGeneratorService {
      * All scenarios are derived from actual discovered elements.
      */
     public BDDScenario generateScenarios(PageAnalysis analysis) {
+        // Check if analysis failed (error state)
+        if ("error".equals(analysis.getPagePurpose())) {
+            return generateErrorResponse(analysis);
+        }
+
         String featureName = generateFeatureName(analysis);
         String featureDescription = generateFeatureDescription(analysis);
 
@@ -54,6 +59,35 @@ public class BDDScenarioGeneratorService {
                 .featureDescription(featureDescription)
                 .tags(generateFeatureTags(analysis))
                 .background(background)
+                .scenarios(scenarios)
+                .build();
+    }
+
+    /**
+     * Generate an error response when page analysis failed.
+     */
+    private BDDScenario generateErrorResponse(PageAnalysis analysis) {
+        String errorMessage = analysis.getPageDescription();
+
+        List<Scenario> scenarios = new ArrayList<>();
+        scenarios.add(Scenario.builder()
+                .name("Analysis Failed")
+                .type("Scenario")
+                .category("error")
+                .tags(List.of("@error", "@manual-check"))
+                .givenSteps(List.of("the page analysis service encountered an error"))
+                .whenSteps(List.of("attempting to analyze \"" + analysis.getUrl() + "\""))
+                .thenSteps(List.of(
+                        "ERROR: " + errorMessage,
+                        "Please verify the URL is accessible and try again"
+                ))
+                .build());
+
+        return BDDScenario.builder()
+                .feature("Analysis Error")
+                .featureDescription("Page analysis failed: " + errorMessage)
+                .tags(List.of("@error"))
+                .background(Collections.emptyList())
                 .scenarios(scenarios)
                 .build();
     }

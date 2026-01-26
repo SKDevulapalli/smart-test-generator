@@ -322,11 +322,14 @@ public class TestGeneratorController {
             // Analyze the page
             PageAnalysis analysis = webPageAnalyzer.analyzePage(url);
 
+            // Check if analysis encountered an error
+            boolean isError = "error".equals(analysis.getPagePurpose());
+
             // Generate BDD scenarios
             BDDScenario bddScenario = bddGenerator.generateScenarios(analysis);
             String gherkinOutput = bddScenario.toGherkin();
 
-            result.put("success", true);
+            result.put("success", !isError);
             result.put("url", url);
             result.put("analysis", Map.of(
                     "title", analysis.getTitle() != null ? analysis.getTitle() : "",
@@ -345,6 +348,16 @@ public class TestGeneratorController {
             result.put("bddScenarios", gherkinOutput);
             result.put("scenarioCount", bddScenario.getScenarios() != null ? bddScenario.getScenarios().size() : 0);
             result.put("totalTimeMs", System.currentTimeMillis() - startTime);
+
+            // Include warnings from analysis
+            if (analysis.getMetadata().getWarnings() != null && !analysis.getMetadata().getWarnings().isEmpty()) {
+                result.put("warnings", analysis.getMetadata().getWarnings());
+            }
+
+            // If there was an error, include the error message
+            if (isError) {
+                result.put("error", analysis.getPageDescription());
+            }
 
             return ResponseEntity.ok(result);
 

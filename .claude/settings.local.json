@@ -9,7 +9,10 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(mvn clean spring-boot:run:*)",
+      "Bash(cmd //c \"taskkill /PID 32828 /F\")",
+      "Bash(cmd //c \"taskkill /PID 60564 /F\")"
     ]
   }
 }

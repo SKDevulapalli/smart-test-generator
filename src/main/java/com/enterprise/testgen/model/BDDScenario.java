@@ -97,8 +97,9 @@ public class BDDScenario {
         // Background
         if (background != null && !background.isEmpty()) {
             sb.append("  Background:\n");
-            for (String step : background) {
-                sb.append("    ").append(step).append("\n");
+            for (int i = 0; i < background.size(); i++) {
+                String prefix = i == 0 ? "Given " : "And ";
+                sb.append("    ").append(prefix).append(background.get(i)).append("\n");
             }
             sb.append("\n");
         }

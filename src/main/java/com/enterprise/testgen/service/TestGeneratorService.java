@@ -67,6 +67,36 @@ public class TestGeneratorService {
     );
 
     /**
+     * Get the effective URL to use for test generation.
+     * Priority: 1) Explicitly provided URL, 2) URL extracted from content, 3) Default value
+     *
+     * @param providedUrl URL provided by user (may be null or empty)
+     * @param content Requirements content to search for URLs
+     * @param defaultUrl Default URL to use if none found
+     * @return The effective URL to use
+     */
+    private String getEffectiveUrl(String providedUrl, String content, String defaultUrl) {
+        // If user provided a URL, use it
+        if (providedUrl != null && !providedUrl.trim().isEmpty()) {
+            return providedUrl.trim();
+        }
+
+        // Try to extract URL from content
+        if (content != null && !content.isEmpty()) {
+            Matcher matcher = URL_PATTERN.matcher(content);
+            if (matcher.find()) {
+                String extractedUrl = matcher.group(1);
+                // Clean up trailing punctuation
+                extractedUrl = extractedUrl.replaceAll("[.,;:!?)]+$", "");
+                return extractedUrl;
+            }
+        }
+
+        // Fall back to default
+        return defaultUrl;
+    }
+
+    /**
      * Generate test cases from requirements content.
      *
      * @param request generation request with content and configuration
@@ -441,8 +471,7 @@ public class TestGeneratorService {
         TestType testType = request.getTestType();
 
         if (testType == TestType.UI) {
-            String url = request.getApplicationUrl() != null ?
-                    request.getApplicationUrl() : "http://localhost:8080";
+            String url = getEffectiveUrl(request.getApplicationUrl(), request.getRequirementsContent(), "http://localhost:8080");
 
             // Generate BasePage.java
             String basePageCode = generateBasePageCode(basePackage, request);
@@ -476,8 +505,7 @@ public class TestGeneratorService {
                     .identifiedGaps(List.of())
                     .build());
         } else {
-            String url = request.getApiBaseUrl() != null ?
-                    request.getApiBaseUrl() : "http://localhost:8080/api";
+            String url = getEffectiveUrl(request.getApiBaseUrl(), request.getRequirementsContent(), "http://localhost:8080/api");
             String code = String.format(RestAssuredTemplates.BASE_API_TEST_TEMPLATE, basePackage, url);
 
             baseClasses.add(TestCase.builder()

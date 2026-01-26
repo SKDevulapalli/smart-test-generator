@@ -162,21 +162,65 @@ function initTestTypeSelector() {
 }
 
 function updateTargetUrlLabel(testType) {
+    const targetUrlGroup = document.getElementById('targetUrlGroup');
     const targetUrlLabel = document.getElementById('targetUrlLabel');
     const applicationUrl = document.getElementById('applicationUrl');
+    const targetUrlHint = document.getElementById('targetUrlHint');
 
-    if (targetUrlLabel && applicationUrl) {
-        if (testType === 'UI') {
-            targetUrlLabel.textContent = 'Application URL';
-            applicationUrl.placeholder = 'http://localhost:8080';
-        } else if (testType === 'API') {
-            targetUrlLabel.textContent = 'API Base URL';
-            applicationUrl.placeholder = 'http://localhost:8080/api';
-        } else if (testType === 'MOBILE') {
-            targetUrlLabel.textContent = 'Appium Server';
-            applicationUrl.placeholder = 'http://localhost:4723';
-        }
+    if (!targetUrlGroup || !targetUrlLabel || !applicationUrl) return;
+
+    if (testType === 'UI') {
+        targetUrlGroup.style.display = 'block';
+        targetUrlLabel.innerHTML = 'Target Environment <span class="optional">(optional)</span>';
+        applicationUrl.placeholder = 'https://example.com';
+        if (targetUrlHint) targetUrlHint.textContent = 'Auto-detected from input if not specified';
+    } else if (testType === 'API') {
+        targetUrlGroup.style.display = 'block';
+        targetUrlLabel.innerHTML = 'API Base URL <span class="optional">(optional)</span>';
+        applicationUrl.placeholder = 'https://api.example.com';
+        if (targetUrlHint) targetUrlHint.textContent = 'Extracted from requirements if not specified';
+    } else if (testType === 'MOBILE') {
+        // For mobile, hide the URL field - Appium server is typically configured elsewhere
+        targetUrlGroup.style.display = 'none';
     }
+}
+
+/**
+ * Extract URLs from text content.
+ * Returns the first http/https URL found, or null if none.
+ */
+function extractUrlFromText(text) {
+    if (!text) return null;
+    const urlPattern = /https?:\/\/[^\s<>"')\]]+/gi;
+    const matches = text.match(urlPattern);
+    if (matches && matches.length > 0) {
+        // Return the first URL, cleaned up (remove trailing punctuation)
+        return matches[0].replace(/[.,;:!?)]+$/, '');
+    }
+    return null;
+}
+
+/**
+ * Get the application URL - either from user input or extracted from content.
+ */
+function getApplicationUrl() {
+    const explicitUrl = document.getElementById('applicationUrl')?.value?.trim();
+
+    // If user provided a URL, use it
+    if (explicitUrl) {
+        return explicitUrl;
+    }
+
+    // Try to extract from the input content based on source type
+    let content = '';
+    if (state.inputSource === 'text') {
+        content = document.getElementById('textContent')?.value || '';
+    }
+    // Note: For document/github, we can't easily extract here,
+    // so let the backend handle URL extraction from parsed content
+
+    const extractedUrl = extractUrlFromText(content);
+    return extractedUrl || ''; // Empty string means backend will use default
 }
 
 // File Upload
@@ -258,16 +302,16 @@ async function generateTests() {
     }
 
     if (state.inputSource === 'github') {
-        const repoUrl = document.getElementById('repoUrl').value;
-        if (!repoUrl) {
+        const repoUrlEl = document.getElementById('repoUrl');
+        if (!repoUrlEl || !repoUrlEl.value.trim()) {
             showToast('Please enter a GitHub repository URL', 'error');
             return;
         }
     }
 
     if (state.inputSource === 'text') {
-        const textContent = document.getElementById('textContent').value;
-        if (!textContent.trim()) {
+        const textContentEl = document.getElementById('textContent');
+        if (!textContentEl || !textContentEl.value.trim()) {
             showToast('Please enter requirements content', 'error');
             return;
         }
@@ -308,9 +352,9 @@ async function generateFromDocument() {
     const formData = new FormData();
     formData.append('file', state.selectedFile);
     formData.append('testType', state.testType);
-    formData.append('basePackage', document.getElementById('basePackage').value || 'com.enterprise.tests');
-    formData.append('applicationUrl', document.getElementById('applicationUrl').value || '');
-    formData.append('apiBaseUrl', document.getElementById('apiBaseUrl').value || '');
+    formData.append('basePackage', document.getElementById('basePackage')?.value || 'com.enterprise.tests');
+    formData.append('applicationUrl', getApplicationUrl());
+    formData.append('apiBaseUrl', getApplicationUrl()); // Use same URL for API base
     formData.append('appiumServerUrl', document.getElementById('appiumServerUrl')?.value || '');
     formData.append('appPackage', document.getElementById('appPackage')?.value || '');
     formData.append('bundleId', document.getElementById('bundleId')?.value || '');
@@ -334,12 +378,12 @@ async function generateFromDocument() {
 
 async function generateFromGitHub() {
     const formData = new FormData();
-    formData.append('repositoryUrl', document.getElementById('repoUrl').value);
-    formData.append('githubToken', document.getElementById('githubToken').value || '');
+    formData.append('repositoryUrl', document.getElementById('repoUrl')?.value || '');
+    formData.append('githubToken', document.getElementById('githubToken')?.value || '');
     formData.append('testType', state.testType);
-    formData.append('basePackage', document.getElementById('basePackage').value || 'com.enterprise.tests');
-    formData.append('applicationUrl', document.getElementById('applicationUrl').value || '');
-    formData.append('apiBaseUrl', document.getElementById('apiBaseUrl').value || '');
+    formData.append('basePackage', document.getElementById('basePackage')?.value || 'com.enterprise.tests');
+    formData.append('applicationUrl', getApplicationUrl());
+    formData.append('apiBaseUrl', getApplicationUrl()); // Use same URL for API base
     formData.append('appiumServerUrl', document.getElementById('appiumServerUrl')?.value || '');
     formData.append('appPackage', document.getElementById('appPackage')?.value || '');
     formData.append('bundleId', document.getElementById('bundleId')?.value || '');
@@ -362,12 +406,15 @@ async function generateFromGitHub() {
 }
 
 async function generateFromText() {
+    const content = document.getElementById('textContent')?.value || '';
+    const appUrl = getApplicationUrl();
+
     const payload = {
-        content: document.getElementById('textContent').value,
+        content: content,
         testType: state.testType,
-        basePackage: document.getElementById('basePackage').value || 'com.enterprise.tests',
-        applicationUrl: document.getElementById('applicationUrl').value || '',
-        apiBaseUrl: document.getElementById('apiBaseUrl').value || '',
+        basePackage: document.getElementById('basePackage')?.value || 'com.enterprise.tests',
+        applicationUrl: appUrl,
+        apiBaseUrl: appUrl, // Use same URL for API base
         appiumServerUrl: document.getElementById('appiumServerUrl')?.value || '',
         appPackage: document.getElementById('appPackage')?.value || '',
         bundleId: document.getElementById('bundleId')?.value || '',
@@ -724,6 +771,48 @@ function initUrlAnalysis() {
     }
 }
 
+// Progress messages for analysis stages
+const analysisProgressMessages = [
+    { message: 'Connecting to URL...', icon: 'bi-globe' },
+    { message: 'Loading page content...', icon: 'bi-file-earmark-code' },
+    { message: 'Waiting for page to stabilize...', icon: 'bi-hourglass-split' },
+    { message: 'Extracting form elements...', icon: 'bi-input-cursor-text' },
+    { message: 'Analyzing buttons and inputs...', icon: 'bi-ui-checks' },
+    { message: 'Detecting navigation links...', icon: 'bi-link-45deg' },
+    { message: 'Inferring page purpose...', icon: 'bi-bullseye' },
+    { message: 'Identifying user flows...', icon: 'bi-diagram-3' },
+    { message: 'Generating BDD scenarios...', icon: 'bi-file-earmark-text' },
+    { message: 'Finalizing analysis...', icon: 'bi-check2-circle' }
+];
+
+let progressInterval = null;
+
+function startProgressAnimation() {
+    const progressContent = document.querySelector('#analysisProgress .progress-content span');
+    const progressIcon = document.querySelector('#analysisProgress .progress-content .spinner');
+
+    if (!progressContent) return;
+
+    let currentIndex = 0;
+
+    // Update message immediately
+    progressContent.textContent = analysisProgressMessages[0].message;
+
+    // Cycle through messages
+    progressInterval = setInterval(() => {
+        currentIndex = (currentIndex + 1) % analysisProgressMessages.length;
+        const stage = analysisProgressMessages[currentIndex];
+        progressContent.textContent = stage.message;
+    }, 1500); // Change message every 1.5 seconds
+}
+
+function stopProgressAnimation() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+}
+
 async function analyzeUrl() {
     const urlInput = document.getElementById('liveUrlInput');
     const progressDiv = document.getElementById('analysisProgress');
@@ -744,6 +833,9 @@ async function analyzeUrl() {
     progressDiv.style.display = 'block';
     resultsDiv.style.display = 'none';
 
+    // Start animated progress messages
+    startProgressAnimation();
+
     try {
         const response = await fetch('/api/analyze/url', {
             method: 'POST',
@@ -755,15 +847,25 @@ async function analyzeUrl() {
 
         const data = await response.json();
 
+        // Stop progress animation
+        stopProgressAnimation();
+
         if (data.success) {
             displayUrlAnalysisResults(data);
             showToast(`Analysis complete: ${data.scenarioCount} BDD scenarios generated!`, 'success');
         } else {
-            showToast(data.error || 'Analysis failed', 'error');
-            progressDiv.style.display = 'none';
+            // Still display results even on error, so user can see what went wrong
+            if (data.bddScenarios) {
+                displayUrlAnalysisResults(data);
+                showToast(data.error || 'Analysis encountered issues', 'error');
+            } else {
+                showToast(data.error || 'Analysis failed', 'error');
+                progressDiv.style.display = 'none';
+            }
         }
     } catch (error) {
         console.error('Analysis error:', error);
+        stopProgressAnimation();
         showToast('Error analyzing URL: ' + error.message, 'error');
         progressDiv.style.display = 'none';
     }
@@ -819,14 +921,24 @@ function displayUrlAnalysisResults(data) {
 }
 
 function highlightGherkin(element, rawText) {
+    // Prevent highlight.js from auto-highlighting this element
+    element.classList.remove('language-gherkin');
+    element.classList.add('gherkin-highlighted');
+
     // First escape HTML to prevent XSS, then apply highlighting
     let html = escapeHtml(rawText);
 
-    // Highlight keywords (must come before other replacements)
-    const keywords = ['Feature:', 'Background:', 'Scenario Outline:', 'Scenario:', 'Given ', 'When ', 'Then ', 'And ', 'But ', 'Examples:'];
+    // Highlight keywords - using word boundaries for better matching
+    // Order matters: longer keywords first to avoid partial matches
+    const keywords = [
+        'Scenario Outline:', 'Feature:', 'Background:', 'Scenario:',
+        'Examples:', 'Given ', 'When ', 'Then ', 'And ', 'But '
+    ];
+
     keywords.forEach(keyword => {
         const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(^|\\n)(\\s*)(${escapedKeyword})`, 'g');
+        // Match keyword at start of line or after newline, with optional leading whitespace
+        const regex = new RegExp(`(^|\\n)([ \\t]*)(${escapedKeyword})`, 'gm');
         html = html.replace(regex, '$1$2<span class="gherkin-keyword">$3</span>');
     });
 
