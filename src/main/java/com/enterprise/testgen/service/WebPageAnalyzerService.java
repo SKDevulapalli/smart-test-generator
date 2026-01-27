@@ -5,10 +5,12 @@ import com.enterprise.testgen.model.PageAnalysis.*;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeDriverService;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -43,8 +45,26 @@ public class WebPageAnalyzerService {
         long startTime = System.currentTimeMillis();
         List<String> warnings = new ArrayList<>();
 
-        WebDriverManager.chromedriver().setup();
+        // Check for pre-installed ChromeDriver (Docker/Railway environment)
+        String chromeDriverPath = System.getenv("CHROMEDRIVER_PATH");
+        String chromeBinPath = System.getenv("CHROME_BIN");
+
+        if (chromeDriverPath != null && new File(chromeDriverPath).exists()) {
+            System.out.println("[WebPageAnalyzer] Using pre-installed ChromeDriver: " + chromeDriverPath);
+            System.setProperty("webdriver.chrome.driver", chromeDriverPath);
+        } else {
+            System.out.println("[WebPageAnalyzer] Using WebDriverManager to setup ChromeDriver");
+            WebDriverManager.chromedriver().setup();
+        }
+
         ChromeOptions options = new ChromeOptions();
+
+        // Set Chrome binary path if provided (Docker/Railway environment)
+        if (chromeBinPath != null && new File(chromeBinPath).exists()) {
+            System.out.println("[WebPageAnalyzer] Using Chrome binary: " + chromeBinPath);
+            options.setBinary(chromeBinPath);
+        }
+
         options.addArguments("--headless=new");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1080");
@@ -56,6 +76,15 @@ public class WebPageAnalyzerService {
         options.addArguments("--disable-software-rasterizer");
         options.addArguments("--disable-setuid-sandbox");
         options.addArguments("--remote-allow-origins=*");
+        options.addArguments("--single-process");
+        options.addArguments("--disable-background-networking");
+        options.addArguments("--disable-default-apps");
+        options.addArguments("--disable-sync");
+        options.addArguments("--disable-translate");
+        options.addArguments("--hide-scrollbars");
+        options.addArguments("--metrics-recording-only");
+        options.addArguments("--mute-audio");
+        options.addArguments("--safebrowsing-disable-auto-update");
         options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         WebDriver driver = null;
