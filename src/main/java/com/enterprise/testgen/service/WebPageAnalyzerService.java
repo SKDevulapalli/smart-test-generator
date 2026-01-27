@@ -53,33 +53,16 @@ public class WebPageAnalyzerService {
             remoteUrl = System.getenv("SELENIUM_REMOTE_URL");
         }
 
+        // Initialize options
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless=new");
-        options.addArguments("--disable-gpu");
-        options.addArguments("--window-size=1920,1080");
-        options.addArguments("--no-sandbox");
-        options.addArguments("--disable-dev-shm-usage");
-        options.addArguments("--disable-extensions");
-        options.addArguments("--disable-popup-blocking");
-        options.addArguments("--disable-software-rasterizer");
-        options.addArguments("--disable-setuid-sandbox");
-        options.addArguments("--remote-allow-origins=*");
-        options.addArguments("--disable-background-networking");
-        options.addArguments("--disable-default-apps");
-        options.addArguments("--disable-sync");
-        options.addArguments("--disable-translate");
-        options.addArguments("--hide-scrollbars");
-        options.addArguments("--metrics-recording-only");
-        options.addArguments("--mute-audio");
-        options.addArguments("--safebrowsing-disable-auto-update");
-        options.addArguments(
-                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         WebDriver driver = null;
         try {
             // Try remote WebDriver first (for cloud deployments)
             if (remoteUrl != null && !remoteUrl.isEmpty()) {
-                System.out.println("[WebPageAnalyzer] Using Remote WebDriver: " + remoteUrl);
+                System.out.println("[WebPageAnalyzer] Utilizing Remote WebDriver Configuration");
+
+                // URL Processing logic (as previously implemented)
                 // Convert wss:// to https:// for Browserless.io compatibility
                 // Browserless.io expects HTTP/HTTPS WebDriver protocol, not WebSocket
                 String httpUrl = remoteUrl;
@@ -94,7 +77,8 @@ public class WebPageAnalyzerService {
                     // Convert legacy chrome.browserless.io to regional endpoint
                     if (httpUrl.contains("chrome.browserless.io")) {
                         httpUrl = httpUrl.replace("chrome.browserless.io", "production-sfo.browserless.io");
-                        System.out.println("[WebPageAnalyzer] Converted legacy domain to regional endpoint");
+                        System.out.println(
+                                "[WebPageAnalyzer] Converted legacy domain to regional endpoint: production-sfo.browserless.io");
                     }
 
                     // Ensure /webdriver endpoint is present
@@ -108,15 +92,61 @@ public class WebPageAnalyzerService {
                             httpUrl = httpUrl + "/webdriver";
                         }
                     }
+
+                    // Add Browserless-specific options for better stability
+                    options.setCapability("browserless:token", "YOUR-API-TOKEN"); // Token is usually in URL, but good
+                                                                                  // fallback
+                    options.addArguments("--no-sandbox");
+                    options.addArguments("--disable-setuid-sandbox");
+                    options.addArguments("--disable-dev-shm-usage");
+                    options.addArguments("--ignore-certificate-errors");
+
+                    // Stealth mode can help avoid detection
+                    Map<String, Object> stealth = new HashMap<>();
+                    stealth.put("enabled", true);
+                    options.setCapability("browserless.stealth", true);
+
+                    System.out.println("[WebPageAnalyzer] Added Browserless.io specific capabilities");
+                } else {
+                    // Standard Remote Grid options
+                    options.addArguments("--no-sandbox");
+                    options.addArguments("--disable-dev-shm-usage");
                 }
-                System.out.println("[WebPageAnalyzer] Connecting to: " + httpUrl);
+
+                System.out.println("[WebPageAnalyzer] Connecting to Remote URL: "
+                        + httpUrl.replaceAll("token=[^&]+", "token=***"));
                 driver = new RemoteWebDriver(new URL(httpUrl), options);
             } else {
+                // Local Chrome Options
+                System.out.println("[WebPageAnalyzer] Configuring Local Chrome Options");
+                options.addArguments("--headless=new");
+                options.addArguments("--disable-gpu");
+                options.addArguments("--window-size=1920,1080");
+                options.addArguments("--no-sandbox");
+                options.addArguments("--disable-dev-shm-usage");
+                options.addArguments("--disable-extensions");
+                options.addArguments("--remote-allow-origins=*");
+                options.addArguments("--disable-background-networking");
+                options.addArguments("--disable-popup-blocking");
+                options.addArguments("--disable-software-rasterizer");
+                options.addArguments("--disable-setuid-sandbox");
+                options.addArguments("--disable-default-apps");
+                options.addArguments("--disable-sync");
+                options.addArguments("--disable-translate");
+                options.addArguments("--hide-scrollbars");
+                options.addArguments("--metrics-recording-only");
+                options.addArguments("--mute-audio");
+                options.addArguments("--safebrowsing-disable-auto-update");
+                options.addArguments(
+                        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
                 // Fall back to local Chrome
                 driver = createLocalDriver(options);
             }
-            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(20));
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(2));
+
+            // Set timeouts
+            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60)); // Increased for remote connections
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
 
             driver.get(url);
 
