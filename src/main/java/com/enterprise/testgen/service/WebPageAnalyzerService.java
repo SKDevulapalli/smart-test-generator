@@ -45,51 +45,71 @@ public class WebPageAnalyzerService {
         long startTime = System.currentTimeMillis();
         List<String> warnings = new ArrayList<>();
 
-        // Check for pre-installed ChromeDriver (Docker/Railway/Selenium image environment)
+        // Check for pre-installed ChromeDriver (Docker/Railway environment)
         String chromeDriverPath = System.getenv("CHROMEDRIVER_PATH");
         String chromeBinPath = System.getenv("CHROME_BIN");
 
-        // Common paths for ChromeDriver in Docker images
+        System.out.println("[WebPageAnalyzer] Environment check:");
+        System.out.println("  CHROMEDRIVER_PATH=" + chromeDriverPath);
+        System.out.println("  CHROME_BIN=" + chromeBinPath);
+
+        // Possible ChromeDriver paths (in order of preference)
         String[] possibleDriverPaths = {
             chromeDriverPath,
-            "/usr/bin/chromedriver",
-            "/opt/selenium/chromedriver",
-            "/usr/local/bin/chromedriver"
+            "/usr/local/bin/chromedriver",
+            "/usr/bin/chromedriver"
         };
 
-        // Common paths for Chrome binary in Docker images
+        // Possible Chrome binary paths (in order of preference)
         String[] possibleChromePaths = {
             chromeBinPath,
+            "/usr/bin/google-chrome-stable",
             "/usr/bin/google-chrome",
-            "/usr/bin/chromium",
             "/usr/bin/chromium-browser",
-            "/opt/google/chrome/chrome"
+            "/usr/bin/chromium"
         };
 
+        // Find and set ChromeDriver path
+        System.out.println("[WebPageAnalyzer] Checking ChromeDriver paths:");
         boolean driverFound = false;
         for (String path : possibleDriverPaths) {
-            if (path != null && new File(path).exists()) {
-                System.out.println("[WebPageAnalyzer] Using ChromeDriver at: " + path);
-                System.setProperty("webdriver.chrome.driver", path);
-                driverFound = true;
-                break;
+            if (path != null && !path.isEmpty()) {
+                boolean exists = new File(path).exists();
+                System.out.println("  " + path + " -> " + (exists ? "EXISTS" : "not found"));
+                if (exists) {
+                    System.out.println("[WebPageAnalyzer] Using ChromeDriver at: " + path);
+                    System.setProperty("webdriver.chrome.driver", path);
+                    driverFound = true;
+                    break;
+                }
             }
         }
 
         if (!driverFound) {
-            System.out.println("[WebPageAnalyzer] Using WebDriverManager to setup ChromeDriver");
+            System.out.println("[WebPageAnalyzer] No pre-installed ChromeDriver found, using WebDriverManager");
             WebDriverManager.chromedriver().setup();
         }
 
         ChromeOptions options = new ChromeOptions();
 
-        // Set Chrome binary path if found
+        // Find and set Chrome binary path
+        System.out.println("[WebPageAnalyzer] Checking Chrome binary paths:");
+        String foundChromePath = null;
         for (String path : possibleChromePaths) {
-            if (path != null && new File(path).exists()) {
-                System.out.println("[WebPageAnalyzer] Using Chrome binary: " + path);
-                options.setBinary(path);
-                break;
+            if (path != null && !path.isEmpty()) {
+                boolean exists = new File(path).exists();
+                System.out.println("  " + path + " -> " + (exists ? "EXISTS" : "not found"));
+                if (exists) {
+                    System.out.println("[WebPageAnalyzer] Using Chrome binary: " + path);
+                    options.setBinary(path);
+                    foundChromePath = path;
+                    break;
+                }
             }
+        }
+
+        if (foundChromePath == null) {
+            System.out.println("[WebPageAnalyzer] WARNING: No Chrome binary found in expected paths!");
         }
 
         options.addArguments("--headless=new");

@@ -5,19 +5,37 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Runtime stage - using Selenium's official Chrome image which has everything pre-configured
-FROM selenium/standalone-chrome:latest
+# Runtime stage
+FROM eclipse-temurin:17-jre-jammy
 
-USER root
-
-# Install Java 17
+# Install Chrome and ChromeDriver
 RUN apt-get update && apt-get install -y \
-    openjdk-17-jre-headless \
+    wget \
+    gnupg \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Java home
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
+# Install Google Chrome stable
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ChromeDriver (matching the Chrome version)
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') \
+    && echo "Chrome version: $CHROME_VERSION" \
+    && CHROMEDRIVER_VERSION=$(wget -qO- "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION%.*.*}") \
+    && echo "ChromeDriver version: $CHROMEDRIVER_VERSION" \
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
+    && unzip /tmp/chromedriver.zip -d /tmp \
+    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64
+
+# Set environment variables
+ENV CHROME_BIN=/usr/bin/google-chrome-stable
+ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 
 WORKDIR /app
 
@@ -27,5 +45,5 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose port (Railway uses PORT env variable)
 EXPOSE 8080
 
-# Run the application as root (needed for Chrome in some environments)
+# Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
