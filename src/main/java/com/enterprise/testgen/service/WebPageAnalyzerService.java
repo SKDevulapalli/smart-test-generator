@@ -52,6 +52,11 @@ public class WebPageAnalyzerService {
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-extensions");
         options.addArguments("--disable-popup-blocking");
+        // Additional options for containerized environments (Railway, Docker)
+        options.addArguments("--disable-software-rasterizer");
+        options.addArguments("--disable-setuid-sandbox");
+        options.addArguments("--remote-allow-origins=*");
+        options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         WebDriver driver = null;
         try {
