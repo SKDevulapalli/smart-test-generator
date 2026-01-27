@@ -30,20 +30,15 @@ public class WebPageAnalyzerService {
     private String seleniumRemoteUrl;
 
     private static final Set<String> LOGIN_INDICATORS = Set.of(
-            "login", "signin", "sign-in", "log-in", "authenticate", "password", "username"
-    );
+            "login", "signin", "sign-in", "log-in", "authenticate", "password", "username");
     private static final Set<String> SIGNUP_INDICATORS = Set.of(
-            "signup", "sign-up", "register", "create-account", "join", "registration"
-    );
+            "signup", "sign-up", "register", "create-account", "join", "registration");
     private static final Set<String> SEARCH_INDICATORS = Set.of(
-            "search", "query", "find", "lookup"
-    );
+            "search", "query", "find", "lookup");
     private static final Set<String> CHECKOUT_INDICATORS = Set.of(
-            "checkout", "payment", "pay", "cart", "order", "purchase"
-    );
+            "checkout", "payment", "pay", "cart", "order", "purchase");
     private static final Set<String> CONTACT_INDICATORS = Set.of(
-            "contact", "message", "inquiry", "feedback", "support"
-    );
+            "contact", "message", "inquiry", "feedback", "support");
 
     /**
      * Analyze a live web page and extract all relevant information.
@@ -77,14 +72,36 @@ public class WebPageAnalyzerService {
         options.addArguments("--metrics-recording-only");
         options.addArguments("--mute-audio");
         options.addArguments("--safebrowsing-disable-auto-update");
-        options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        options.addArguments(
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         WebDriver driver = null;
         try {
             // Try remote WebDriver first (for cloud deployments)
             if (remoteUrl != null && !remoteUrl.isEmpty()) {
                 System.out.println("[WebPageAnalyzer] Using Remote WebDriver: " + remoteUrl);
-                driver = new RemoteWebDriver(new URL(remoteUrl), options);
+                // Convert wss:// to https:// for Browserless.io compatibility
+                // Browserless.io expects HTTP/HTTPS WebDriver protocol, not WebSocket
+                String httpUrl = remoteUrl;
+                if (httpUrl.startsWith("wss://")) {
+                    httpUrl = httpUrl.replace("wss://", "https://");
+                } else if (httpUrl.startsWith("ws://")) {
+                    httpUrl = httpUrl.replace("ws://", "http://");
+                }
+                // Browserless.io uses /webdriver endpoint for Selenium WebDriver protocol
+                if (httpUrl.contains("browserless.io") && !httpUrl.contains("/webdriver")) {
+                    // Handle URLs with and without query parameters
+                    int queryIndex = httpUrl.indexOf("?");
+                    if (queryIndex > 0) {
+                        // Insert /webdriver before the query string
+                        httpUrl = httpUrl.substring(0, queryIndex) + "/webdriver" + httpUrl.substring(queryIndex);
+                    } else {
+                        // No query params, just append /webdriver
+                        httpUrl = httpUrl + "/webdriver";
+                    }
+                }
+                System.out.println("[WebPageAnalyzer] Connecting to: " + httpUrl);
+                driver = new RemoteWebDriver(new URL(httpUrl), options);
             } else {
                 // Fall back to local Chrome
                 driver = createLocalDriver(options);
@@ -192,7 +209,8 @@ public class WebPageAnalyzerService {
     }
 
     /**
-     * Extract all interactive elements from the page using optimized batch JavaScript extraction.
+     * Extract all interactive elements from the page using optimized batch
+     * JavaScript extraction.
      */
     private List<PageElement> extractInteractiveElements(WebDriver driver) {
         List<PageElement> elements = new ArrayList<>();
@@ -201,7 +219,7 @@ public class WebPageAnalyzerService {
             // Use JavaScript to extract all elements in one call for better performance
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> batchElements = (List<Map<String, Object>>) ((JavascriptExecutor) driver)
-                .executeScript(BATCH_ELEMENT_EXTRACTION_SCRIPT);
+                    .executeScript(BATCH_ELEMENT_EXTRACTION_SCRIPT);
 
             if (batchElements != null) {
                 for (Map<String, Object> elData : batchElements) {
@@ -210,7 +228,8 @@ public class WebPageAnalyzerService {
                         if (element != null) {
                             elements.add(element);
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         } catch (Exception e) {
@@ -239,20 +258,20 @@ public class WebPageAnalyzerService {
 
         // Possible ChromeDriver paths
         String[] possibleDriverPaths = {
-            chromeDriverPath,
-            "/usr/local/bin/chromedriver",
-            "/usr/bin/chromedriver"
+                chromeDriverPath,
+                "/usr/local/bin/chromedriver",
+                "/usr/bin/chromedriver"
         };
 
         // Possible Chrome binary paths
         String[] possibleChromePaths = {
-            chromeBinPath,
-            "/usr/bin/google-chrome",
-            "/opt/chrome-linux64/chrome",
-            "/usr/bin/google-chrome-stable",
-            "/opt/google/chrome/chrome",
-            "/usr/bin/chromium-browser",
-            "/usr/bin/chromium"
+                chromeBinPath,
+                "/usr/bin/google-chrome",
+                "/opt/chrome-linux64/chrome",
+                "/usr/bin/google-chrome-stable",
+                "/opt/google/chrome/chrome",
+                "/usr/bin/chromium-browser",
+                "/usr/bin/chromium"
         };
 
         // Find and set ChromeDriver path
@@ -284,126 +303,127 @@ public class WebPageAnalyzerService {
     }
 
     /**
-     * JavaScript for batch element extraction - significantly faster than individual Selenium calls.
+     * JavaScript for batch element extraction - significantly faster than
+     * individual Selenium calls.
      */
     private static final String BATCH_ELEMENT_EXTRACTION_SCRIPT = """
-        (function() {
-            var results = [];
-            var maxElements = 100; // Limit to prevent slow pages
+            (function() {
+                var results = [];
+                var maxElements = 100; // Limit to prevent slow pages
 
-            function getLabelFor(el) {
-                if (el.id) {
-                    var label = document.querySelector('label[for="' + el.id + '"]');
-                    if (label) return label.textContent.trim();
-                }
-                var parent = el.closest('label');
-                if (parent) return parent.textContent.trim();
-                return null;
-            }
-
-            function getDataAttributes(el) {
-                var data = {};
-                Array.from(el.attributes).forEach(function(attr) {
-                    if (attr.name.startsWith('data-')) {
-                        data[attr.name.substring(5)] = attr.value;
+                function getLabelFor(el) {
+                    if (el.id) {
+                        var label = document.querySelector('label[for="' + el.id + '"]');
+                        if (label) return label.textContent.trim();
                     }
-                });
-                return data;
-            }
+                    var parent = el.closest('label');
+                    if (parent) return parent.textContent.trim();
+                    return null;
+                }
 
-            // Extract inputs (excluding hidden)
-            var inputs = document.querySelectorAll('input:not([type="hidden"])');
-            for (var i = 0; i < Math.min(inputs.length, maxElements); i++) {
-                var el = inputs[i];
-                results.push({
-                    type: 'input',
-                    inputType: el.type || 'text',
-                    id: el.id || null,
-                    name: el.name || null,
-                    placeholder: el.placeholder || null,
-                    ariaLabel: el.getAttribute('aria-label'),
-                    label: getLabelFor(el),
-                    required: el.required,
-                    pattern: el.pattern || null,
-                    minLength: el.minLength > 0 ? el.minLength : null,
-                    maxLength: el.maxLength > 0 ? el.maxLength : null,
-                    min: el.min || null,
-                    max: el.max || null,
-                    cssClasses: el.className || null,
-                    role: el.getAttribute('role'),
-                    dataAttributes: getDataAttributes(el)
-                });
-            }
+                function getDataAttributes(el) {
+                    var data = {};
+                    Array.from(el.attributes).forEach(function(attr) {
+                        if (attr.name.startsWith('data-')) {
+                            data[attr.name.substring(5)] = attr.value;
+                        }
+                    });
+                    return data;
+                }
 
-            // Extract buttons
-            var buttons = document.querySelectorAll('button');
-            for (var i = 0; i < Math.min(buttons.length, maxElements); i++) {
-                var el = buttons[i];
-                results.push({
-                    type: 'button',
-                    inputType: el.type || 'button',
-                    id: el.id || null,
-                    name: el.name || null,
-                    visibleText: el.textContent.trim(),
-                    ariaLabel: el.getAttribute('aria-label'),
-                    cssClasses: el.className || null,
-                    dataAttributes: getDataAttributes(el)
-                });
-            }
+                // Extract inputs (excluding hidden)
+                var inputs = document.querySelectorAll('input:not([type="hidden"])');
+                for (var i = 0; i < Math.min(inputs.length, maxElements); i++) {
+                    var el = inputs[i];
+                    results.push({
+                        type: 'input',
+                        inputType: el.type || 'text',
+                        id: el.id || null,
+                        name: el.name || null,
+                        placeholder: el.placeholder || null,
+                        ariaLabel: el.getAttribute('aria-label'),
+                        label: getLabelFor(el),
+                        required: el.required,
+                        pattern: el.pattern || null,
+                        minLength: el.minLength > 0 ? el.minLength : null,
+                        maxLength: el.maxLength > 0 ? el.maxLength : null,
+                        min: el.min || null,
+                        max: el.max || null,
+                        cssClasses: el.className || null,
+                        role: el.getAttribute('role'),
+                        dataAttributes: getDataAttributes(el)
+                    });
+                }
 
-            // Extract selects
-            var selects = document.querySelectorAll('select');
-            for (var i = 0; i < Math.min(selects.length, maxElements); i++) {
-                var el = selects[i];
-                results.push({
-                    type: 'select',
-                    id: el.id || null,
-                    name: el.name || null,
-                    ariaLabel: el.getAttribute('aria-label'),
-                    label: getLabelFor(el),
-                    required: el.required,
-                    cssClasses: el.className || null,
-                    dataAttributes: getDataAttributes(el)
-                });
-            }
+                // Extract buttons
+                var buttons = document.querySelectorAll('button');
+                for (var i = 0; i < Math.min(buttons.length, maxElements); i++) {
+                    var el = buttons[i];
+                    results.push({
+                        type: 'button',
+                        inputType: el.type || 'button',
+                        id: el.id || null,
+                        name: el.name || null,
+                        visibleText: el.textContent.trim(),
+                        ariaLabel: el.getAttribute('aria-label'),
+                        cssClasses: el.className || null,
+                        dataAttributes: getDataAttributes(el)
+                    });
+                }
 
-            // Extract textareas
-            var textareas = document.querySelectorAll('textarea');
-            for (var i = 0; i < Math.min(textareas.length, maxElements); i++) {
-                var el = textareas[i];
-                results.push({
-                    type: 'textarea',
-                    id: el.id || null,
-                    name: el.name || null,
-                    placeholder: el.placeholder || null,
-                    ariaLabel: el.getAttribute('aria-label'),
-                    label: getLabelFor(el),
-                    required: el.required,
-                    minLength: el.minLength > 0 ? el.minLength : null,
-                    maxLength: el.maxLength > 0 ? el.maxLength : null,
-                    cssClasses: el.className || null,
-                    dataAttributes: getDataAttributes(el)
-                });
-            }
+                // Extract selects
+                var selects = document.querySelectorAll('select');
+                for (var i = 0; i < Math.min(selects.length, maxElements); i++) {
+                    var el = selects[i];
+                    results.push({
+                        type: 'select',
+                        id: el.id || null,
+                        name: el.name || null,
+                        ariaLabel: el.getAttribute('aria-label'),
+                        label: getLabelFor(el),
+                        required: el.required,
+                        cssClasses: el.className || null,
+                        dataAttributes: getDataAttributes(el)
+                    });
+                }
 
-            // Extract role=button elements (excluding actual buttons)
-            var roleButtons = document.querySelectorAll('[role="button"]:not(button)');
-            for (var i = 0; i < Math.min(roleButtons.length, maxElements); i++) {
-                var el = roleButtons[i];
-                results.push({
-                    type: 'role-button',
-                    id: el.id || null,
-                    visibleText: el.textContent.trim(),
-                    ariaLabel: el.getAttribute('aria-label'),
-                    role: 'button',
-                    cssClasses: el.className || null,
-                    dataAttributes: getDataAttributes(el)
-                });
-            }
+                // Extract textareas
+                var textareas = document.querySelectorAll('textarea');
+                for (var i = 0; i < Math.min(textareas.length, maxElements); i++) {
+                    var el = textareas[i];
+                    results.push({
+                        type: 'textarea',
+                        id: el.id || null,
+                        name: el.name || null,
+                        placeholder: el.placeholder || null,
+                        ariaLabel: el.getAttribute('aria-label'),
+                        label: getLabelFor(el),
+                        required: el.required,
+                        minLength: el.minLength > 0 ? el.minLength : null,
+                        maxLength: el.maxLength > 0 ? el.maxLength : null,
+                        cssClasses: el.className || null,
+                        dataAttributes: getDataAttributes(el)
+                    });
+                }
 
-            return results;
-        })();
-        """;
+                // Extract role=button elements (excluding actual buttons)
+                var roleButtons = document.querySelectorAll('[role="button"]:not(button)');
+                for (var i = 0; i < Math.min(roleButtons.length, maxElements); i++) {
+                    var el = roleButtons[i];
+                    results.push({
+                        type: 'role-button',
+                        id: el.id || null,
+                        visibleText: el.textContent.trim(),
+                        ariaLabel: el.getAttribute('aria-label'),
+                        role: 'button',
+                        cssClasses: el.className || null,
+                        dataAttributes: getDataAttributes(el)
+                    });
+                }
+
+                return results;
+            })();
+            """;
 
     /**
      * Build PageElement from JavaScript extraction map.
@@ -422,8 +442,10 @@ public class WebPageAnalyzerService {
         String cssClasses = (String) data.get("cssClasses");
         String role = (String) data.get("role");
 
-        Integer minLength = data.get("minLength") instanceof Number ? ((Number) data.get("minLength")).intValue() : null;
-        Integer maxLength = data.get("maxLength") instanceof Number ? ((Number) data.get("maxLength")).intValue() : null;
+        Integer minLength = data.get("minLength") instanceof Number ? ((Number) data.get("minLength")).intValue()
+                : null;
+        Integer maxLength = data.get("maxLength") instanceof Number ? ((Number) data.get("maxLength")).intValue()
+                : null;
         String min = (String) data.get("min");
         String max = (String) data.get("max");
 
@@ -470,7 +492,8 @@ public class WebPageAnalyzerService {
         return result;
     }
 
-    private String generateRecommendedLocatorFromData(String id, String name, String ariaLabel, String text, String label) {
+    private String generateRecommendedLocatorFromData(String id, String name, String ariaLabel, String text,
+            String label) {
         if (id != null && !id.isEmpty()) {
             return "By.id(\"" + id + "\")";
         }
@@ -520,10 +543,12 @@ public class WebPageAnalyzerService {
         for (WebElement el : inputElements) {
             try {
                 String type = el.getAttribute("type");
-                if (type == null) type = "text";
+                if (type == null)
+                    type = "text";
 
                 // Skip hidden inputs for main analysis
-                if ("hidden".equals(type)) continue;
+                if ("hidden".equals(type))
+                    continue;
 
                 String id = el.getAttribute("id");
                 String name = el.getAttribute("name");
@@ -551,7 +576,8 @@ public class WebPageAnalyzerService {
                         .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
                         .dataAttributes(extractDataAttributes(el))
                         .build());
-            } catch (StaleElementReferenceException ignored) {}
+            } catch (StaleElementReferenceException ignored) {
+            }
         }
         return inputs;
     }
@@ -580,7 +606,8 @@ public class WebPageAnalyzerService {
                         .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, text))
                         .dataAttributes(extractDataAttributes(el))
                         .build());
-            } catch (StaleElementReferenceException ignored) {}
+            } catch (StaleElementReferenceException ignored) {
+            }
         }
         return buttons;
     }
@@ -608,7 +635,8 @@ public class WebPageAnalyzerService {
                         .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
                         .dataAttributes(extractDataAttributes(el))
                         .build());
-            } catch (StaleElementReferenceException ignored) {}
+            } catch (StaleElementReferenceException ignored) {
+            }
         }
         return selects;
     }
@@ -640,7 +668,8 @@ public class WebPageAnalyzerService {
                         .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
                         .dataAttributes(extractDataAttributes(el))
                         .build());
-            } catch (StaleElementReferenceException ignored) {}
+            } catch (StaleElementReferenceException ignored) {
+            }
         }
         return textareas;
     }
@@ -652,7 +681,8 @@ public class WebPageAnalyzerService {
         for (WebElement el : elements) {
             try {
                 // Skip actual buttons already captured
-                if ("button".equalsIgnoreCase(el.getTagName())) continue;
+                if ("button".equalsIgnoreCase(el.getTagName()))
+                    continue;
 
                 String text = el.getText().trim();
                 String id = el.getAttribute("id");
@@ -669,7 +699,8 @@ public class WebPageAnalyzerService {
                         .recommendedLocator(generateRecommendedLocator(el, id, null, ariaLabel, text))
                         .dataAttributes(extractDataAttributes(el))
                         .build());
-            } catch (StaleElementReferenceException ignored) {}
+            } catch (StaleElementReferenceException ignored) {
+            }
         }
         return roleButtons;
     }
@@ -695,7 +726,8 @@ public class WebPageAnalyzerService {
 
                 for (WebElement el : formInputs) {
                     String type = el.getAttribute("type");
-                    if ("hidden".equals(type)) continue;
+                    if ("hidden".equals(type))
+                        continue;
                     fields.add(buildPageElementFromWebElement(driver, el, "input"));
                 }
                 for (WebElement el : formSelects) {
@@ -734,11 +766,13 @@ public class WebPageAnalyzerService {
                 }
 
                 // Check for CSRF token
-                boolean hasCsrf = !form.findElements(By.cssSelector("input[name*='csrf'], input[name*='token']")).isEmpty();
+                boolean hasCsrf = !form.findElements(By.cssSelector("input[name*='csrf'], input[name*='token']"))
+                        .isEmpty();
 
                 // Extract validation messages
                 List<String> validationMessages = new ArrayList<>();
-                List<WebElement> errorElements = form.findElements(By.cssSelector("[class*='error'], [class*='invalid'], [role='alert']"));
+                List<WebElement> errorElements = form
+                        .findElements(By.cssSelector("[class*='error'], [class*='invalid'], [role='alert']"));
                 for (WebElement err : errorElements) {
                     String text = err.getText().trim();
                     if (!text.isEmpty()) {
@@ -759,7 +793,8 @@ public class WebPageAnalyzerService {
                         .validationMessages(validationMessages)
                         .build());
 
-            } catch (StaleElementReferenceException ignored) {}
+            } catch (StaleElementReferenceException ignored) {
+            }
         }
         return forms;
     }
@@ -775,7 +810,7 @@ public class WebPageAnalyzerService {
             // Use JavaScript to extract all links in one call
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> batchLinks = (List<Map<String, Object>>) ((JavascriptExecutor) driver)
-                .executeScript(BATCH_LINK_EXTRACTION_SCRIPT);
+                    .executeScript(BATCH_LINK_EXTRACTION_SCRIPT);
 
             if (batchLinks != null) {
                 for (Map<String, Object> linkData : batchLinks) {
@@ -820,7 +855,8 @@ public class WebPageAnalyzerService {
                             .internal(isInternal)
                             .purpose(purpose)
                             .build());
-                } catch (StaleElementReferenceException ignored) {}
+                } catch (StaleElementReferenceException ignored) {
+                }
             }
         }
         return links;
@@ -830,22 +866,22 @@ public class WebPageAnalyzerService {
      * JavaScript for batch link extraction.
      */
     private static final String BATCH_LINK_EXTRACTION_SCRIPT = """
-        (function() {
-            var results = [];
-            var maxLinks = 50; // Limit to prevent slow pages
-            var anchors = document.querySelectorAll('a[href]');
+            (function() {
+                var results = [];
+                var maxLinks = 50; // Limit to prevent slow pages
+                var anchors = document.querySelectorAll('a[href]');
 
-            for (var i = 0; i < Math.min(anchors.length, maxLinks); i++) {
-                var el = anchors[i];
-                results.push({
-                    href: el.href,
-                    text: el.textContent.trim(),
-                    ariaLabel: el.getAttribute('aria-label')
-                });
-            }
-            return results;
-        })();
-        """;
+                for (var i = 0; i < Math.min(anchors.length, maxLinks); i++) {
+                    var el = anchors[i];
+                    results.push({
+                        href: el.href,
+                        text: el.textContent.trim(),
+                        ariaLabel: el.getAttribute('aria-label')
+                    });
+                }
+                return results;
+            })();
+            """;
 
     /**
      * Infer the purpose of the page based on various signals.
@@ -862,11 +898,16 @@ public class WebPageAnalyzerService {
         }
 
         // Check indicators
-        if (containsAny(combined, LOGIN_INDICATORS)) return "login";
-        if (containsAny(combined, SIGNUP_INDICATORS)) return "registration";
-        if (containsAny(combined, SEARCH_INDICATORS)) return "search";
-        if (containsAny(combined, CHECKOUT_INDICATORS)) return "checkout";
-        if (containsAny(combined, CONTACT_INDICATORS)) return "contact";
+        if (containsAny(combined, LOGIN_INDICATORS))
+            return "login";
+        if (containsAny(combined, SIGNUP_INDICATORS))
+            return "registration";
+        if (containsAny(combined, SEARCH_INDICATORS))
+            return "search";
+        if (containsAny(combined, CHECKOUT_INDICATORS))
+            return "checkout";
+        if (containsAny(combined, CONTACT_INDICATORS))
+            return "contact";
 
         // Check element patterns
         boolean hasPasswordField = elements.stream()
@@ -883,9 +924,12 @@ public class WebPageAnalyzerService {
             return "login";
         }
 
-        if (combined.contains("dashboard")) return "dashboard";
-        if (combined.contains("profile")) return "profile";
-        if (combined.contains("settings")) return "settings";
+        if (combined.contains("dashboard"))
+            return "dashboard";
+        if (combined.contains("profile"))
+            return "profile";
+        if (combined.contains("settings"))
+            return "settings";
 
         return "general";
     }
@@ -978,10 +1022,12 @@ public class WebPageAnalyzerService {
         // Add flows based on specific elements
         for (PageElement el : elements) {
             if ("checkbox".equals(el.getInputType())) {
-                flows.add("User toggles '" + (el.getSemanticName() != null ? el.getSemanticName() : "checkbox") + "' option");
+                flows.add("User toggles '" + (el.getSemanticName() != null ? el.getSemanticName() : "checkbox")
+                        + "' option");
             }
             if ("select".equals(el.getType())) {
-                flows.add("User selects option from '" + (el.getSemanticName() != null ? el.getSemanticName() : "dropdown") + "'");
+                flows.add("User selects option from '"
+                        + (el.getSemanticName() != null ? el.getSemanticName() : "dropdown") + "'");
             }
         }
 
@@ -1028,7 +1074,8 @@ public class WebPageAnalyzerService {
     /**
      * Identify security considerations.
      */
-    private List<String> identifySecurityConsiderations(String purpose, List<PageElement> elements, List<FormInfo> forms) {
+    private List<String> identifySecurityConsiderations(String purpose, List<PageElement> elements,
+            List<FormInfo> forms) {
         List<String> security = new ArrayList<>();
 
         // Check for CSRF protection
@@ -1074,14 +1121,16 @@ public class WebPageAnalyzerService {
                 if (!labels.isEmpty()) {
                     return labels.get(0).getText().trim();
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         // Try parent label
         try {
             WebElement parent = element.findElement(By.xpath("./ancestor::label"));
             return parent.getText().trim();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         return null;
     }
@@ -1112,25 +1161,36 @@ public class WebPageAnalyzerService {
                 .build();
     }
 
-    private String inferSemanticName(String type, String id, String name, String placeholder, String label, String ariaLabel) {
-        if (label != null && !label.isEmpty()) return label;
-        if (ariaLabel != null && !ariaLabel.isEmpty()) return ariaLabel;
-        if (placeholder != null && !placeholder.isEmpty()) return placeholder;
-        if (name != null && !name.isEmpty()) return humanize(name);
-        if (id != null && !id.isEmpty()) return humanize(id);
+    private String inferSemanticName(String type, String id, String name, String placeholder, String label,
+            String ariaLabel) {
+        if (label != null && !label.isEmpty())
+            return label;
+        if (ariaLabel != null && !ariaLabel.isEmpty())
+            return ariaLabel;
+        if (placeholder != null && !placeholder.isEmpty())
+            return placeholder;
+        if (name != null && !name.isEmpty())
+            return humanize(name);
+        if (id != null && !id.isEmpty())
+            return humanize(id);
         return type + " field";
     }
 
     private String inferButtonSemanticName(String text, String id, String name, String ariaLabel) {
-        if (text != null && !text.isEmpty()) return text;
-        if (ariaLabel != null && !ariaLabel.isEmpty()) return ariaLabel;
-        if (name != null && !name.isEmpty()) return humanize(name);
-        if (id != null && !id.isEmpty()) return humanize(id);
+        if (text != null && !text.isEmpty())
+            return text;
+        if (ariaLabel != null && !ariaLabel.isEmpty())
+            return ariaLabel;
+        if (name != null && !name.isEmpty())
+            return humanize(name);
+        if (id != null && !id.isEmpty())
+            return humanize(id);
         return "button";
     }
 
     private String humanize(String text) {
-        if (text == null) return "";
+        if (text == null)
+            return "";
         return text.replaceAll("([a-z])([A-Z])", "$1 $2")
                 .replaceAll("[_-]", " ")
                 .trim();
@@ -1162,17 +1222,23 @@ public class WebPageAnalyzerService {
             if (dataset != null) {
                 dataset.forEach((k, v) -> dataAttrs.put(k, String.valueOf(v)));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return dataAttrs;
     }
 
     private String inferFormPurpose(String id, String name, String action, List<PageElement> fields) {
-        String combined = ((id != null ? id : "") + " " + (name != null ? name : "") + " " + (action != null ? action : "")).toLowerCase();
+        String combined = ((id != null ? id : "") + " " + (name != null ? name : "") + " "
+                + (action != null ? action : "")).toLowerCase();
 
-        if (containsAny(combined, LOGIN_INDICATORS)) return "login";
-        if (containsAny(combined, SIGNUP_INDICATORS)) return "registration";
-        if (containsAny(combined, SEARCH_INDICATORS)) return "search";
-        if (containsAny(combined, CONTACT_INDICATORS)) return "contact";
+        if (containsAny(combined, LOGIN_INDICATORS))
+            return "login";
+        if (containsAny(combined, SIGNUP_INDICATORS))
+            return "registration";
+        if (containsAny(combined, SEARCH_INDICATORS))
+            return "search";
+        if (containsAny(combined, CONTACT_INDICATORS))
+            return "contact";
 
         // Check fields
         boolean hasPassword = fields.stream().anyMatch(f -> "password".equals(f.getInputType()));
@@ -1190,13 +1256,20 @@ public class WebPageAnalyzerService {
 
     private String inferLinkPurpose(String text, String href) {
         String combined = (text + " " + href).toLowerCase();
-        if (containsAny(combined, LOGIN_INDICATORS)) return "authentication";
-        if (containsAny(combined, SIGNUP_INDICATORS)) return "registration";
-        if (combined.contains("logout") || combined.contains("sign out")) return "logout";
-        if (combined.contains("home")) return "home navigation";
-        if (combined.contains("about")) return "about page";
-        if (combined.contains("contact")) return "contact page";
-        if (combined.contains("help") || combined.contains("faq")) return "help/support";
+        if (containsAny(combined, LOGIN_INDICATORS))
+            return "authentication";
+        if (containsAny(combined, SIGNUP_INDICATORS))
+            return "registration";
+        if (combined.contains("logout") || combined.contains("sign out"))
+            return "logout";
+        if (combined.contains("home"))
+            return "home navigation";
+        if (combined.contains("about"))
+            return "about page";
+        if (combined.contains("contact"))
+            return "contact page";
+        if (combined.contains("help") || combined.contains("faq"))
+            return "help/support";
         return "navigation";
     }
 
@@ -1214,7 +1287,8 @@ public class WebPageAnalyzerService {
     }
 
     private Integer parseInteger(String value) {
-        if (value == null || value.isEmpty()) return null;
+        if (value == null || value.isEmpty())
+            return null;
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
