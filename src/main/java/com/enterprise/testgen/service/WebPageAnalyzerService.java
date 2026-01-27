@@ -5,12 +5,14 @@ import com.enterprise.testgen.model.PageAnalysis.*;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeDriverService;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.net.URL;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,6 +23,11 @@ import java.util.stream.Collectors;
  */
 @Service
 public class WebPageAnalyzerService {
+
+    // Remote WebDriver URL (Browserless.io, Selenium Grid, etc.)
+    // Set SELENIUM_REMOTE_URL env var to use remote browser
+    @Value("${selenium.remote.url:}")
+    private String seleniumRemoteUrl;
 
     private static final Set<String> LOGIN_INDICATORS = Set.of(
             "login", "signin", "sign-in", "log-in", "authenticate", "password", "username"
@@ -45,75 +52,13 @@ public class WebPageAnalyzerService {
         long startTime = System.currentTimeMillis();
         List<String> warnings = new ArrayList<>();
 
-        // Check for pre-installed ChromeDriver (Docker/Railway environment)
-        String chromeDriverPath = System.getenv("CHROMEDRIVER_PATH");
-        String chromeBinPath = System.getenv("CHROME_BIN");
-
-        System.out.println("[WebPageAnalyzer] Environment check:");
-        System.out.println("  CHROMEDRIVER_PATH=" + chromeDriverPath);
-        System.out.println("  CHROME_BIN=" + chromeBinPath);
-
-        // Possible ChromeDriver paths (in order of preference)
-        String[] possibleDriverPaths = {
-            chromeDriverPath,
-            "/usr/local/bin/chromedriver",
-            "/usr/bin/chromedriver"
-        };
-
-        // Possible Chrome binary paths (in order of preference)
-        String[] possibleChromePaths = {
-            chromeBinPath,
-            "/usr/bin/google-chrome",
-            "/opt/chrome-linux64/chrome",
-            "/usr/bin/google-chrome-stable",
-            "/opt/google/chrome/chrome",
-            "/usr/bin/chromium-browser",
-            "/usr/bin/chromium"
-        };
-
-        // Find and set ChromeDriver path
-        System.out.println("[WebPageAnalyzer] Checking ChromeDriver paths:");
-        boolean driverFound = false;
-        for (String path : possibleDriverPaths) {
-            if (path != null && !path.isEmpty()) {
-                boolean exists = new File(path).exists();
-                System.out.println("  " + path + " -> " + (exists ? "EXISTS" : "not found"));
-                if (exists) {
-                    System.out.println("[WebPageAnalyzer] Using ChromeDriver at: " + path);
-                    System.setProperty("webdriver.chrome.driver", path);
-                    driverFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (!driverFound) {
-            System.out.println("[WebPageAnalyzer] No pre-installed ChromeDriver found, using WebDriverManager");
-            WebDriverManager.chromedriver().setup();
+        // Check for remote Selenium URL first (Browserless.io, Selenium Grid, etc.)
+        String remoteUrl = seleniumRemoteUrl;
+        if (remoteUrl == null || remoteUrl.isEmpty()) {
+            remoteUrl = System.getenv("SELENIUM_REMOTE_URL");
         }
 
         ChromeOptions options = new ChromeOptions();
-
-        // Find and set Chrome binary path
-        System.out.println("[WebPageAnalyzer] Checking Chrome binary paths:");
-        String foundChromePath = null;
-        for (String path : possibleChromePaths) {
-            if (path != null && !path.isEmpty()) {
-                boolean exists = new File(path).exists();
-                System.out.println("  " + path + " -> " + (exists ? "EXISTS" : "not found"));
-                if (exists) {
-                    System.out.println("[WebPageAnalyzer] Using Chrome binary: " + path);
-                    options.setBinary(path);
-                    foundChromePath = path;
-                    break;
-                }
-            }
-        }
-
-        if (foundChromePath == null) {
-            System.out.println("[WebPageAnalyzer] WARNING: No Chrome binary found in expected paths!");
-        }
-
         options.addArguments("--headless=new");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1080");
@@ -121,11 +66,9 @@ public class WebPageAnalyzerService {
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-extensions");
         options.addArguments("--disable-popup-blocking");
-        // Additional options for containerized environments (Railway, Docker)
         options.addArguments("--disable-software-rasterizer");
         options.addArguments("--disable-setuid-sandbox");
         options.addArguments("--remote-allow-origins=*");
-        options.addArguments("--single-process");
         options.addArguments("--disable-background-networking");
         options.addArguments("--disable-default-apps");
         options.addArguments("--disable-sync");
@@ -138,7 +81,14 @@ public class WebPageAnalyzerService {
 
         WebDriver driver = null;
         try {
-            driver = new ChromeDriver(options);
+            // Try remote WebDriver first (for cloud deployments)
+            if (remoteUrl != null && !remoteUrl.isEmpty()) {
+                System.out.println("[WebPageAnalyzer] Using Remote WebDriver: " + remoteUrl);
+                driver = new RemoteWebDriver(new URL(remoteUrl), options);
+            } else {
+                // Fall back to local Chrome
+                driver = createLocalDriver(options);
+            }
             driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(20));
             driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(2));
 
@@ -273,6 +223,64 @@ public class WebPageAnalyzerService {
         }
 
         return elements;
+    }
+
+    /**
+     * Create a local Chrome WebDriver instance.
+     */
+    private WebDriver createLocalDriver(ChromeOptions options) {
+        // Check for pre-installed ChromeDriver
+        String chromeDriverPath = System.getenv("CHROMEDRIVER_PATH");
+        String chromeBinPath = System.getenv("CHROME_BIN");
+
+        System.out.println("[WebPageAnalyzer] Creating local driver:");
+        System.out.println("  CHROMEDRIVER_PATH=" + chromeDriverPath);
+        System.out.println("  CHROME_BIN=" + chromeBinPath);
+
+        // Possible ChromeDriver paths
+        String[] possibleDriverPaths = {
+            chromeDriverPath,
+            "/usr/local/bin/chromedriver",
+            "/usr/bin/chromedriver"
+        };
+
+        // Possible Chrome binary paths
+        String[] possibleChromePaths = {
+            chromeBinPath,
+            "/usr/bin/google-chrome",
+            "/opt/chrome-linux64/chrome",
+            "/usr/bin/google-chrome-stable",
+            "/opt/google/chrome/chrome",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium"
+        };
+
+        // Find and set ChromeDriver path
+        boolean driverFound = false;
+        for (String path : possibleDriverPaths) {
+            if (path != null && !path.isEmpty() && new File(path).exists()) {
+                System.out.println("[WebPageAnalyzer] Using ChromeDriver: " + path);
+                System.setProperty("webdriver.chrome.driver", path);
+                driverFound = true;
+                break;
+            }
+        }
+
+        if (!driverFound) {
+            System.out.println("[WebPageAnalyzer] Using WebDriverManager");
+            WebDriverManager.chromedriver().setup();
+        }
+
+        // Find and set Chrome binary path
+        for (String path : possibleChromePaths) {
+            if (path != null && !path.isEmpty() && new File(path).exists()) {
+                System.out.println("[WebPageAnalyzer] Using Chrome binary: " + path);
+                options.setBinary(path);
+                break;
+            }
+        }
+
+        return new ChromeDriver(options);
     }
 
     /**
