@@ -2,32 +2,21 @@ package com.enterprise.testgen.service;
 
 import com.enterprise.testgen.model.PageAnalysis;
 import com.enterprise.testgen.model.PageAnalysis.*;
-import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.*;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.remote.RemoteWebDriver;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.springframework.beans.factory.annotation.Value;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.net.URL;
-import java.time.Duration;
+import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
- * Service for analyzing live web pages using headless browser.
- * Extracts DOM structure, interactive elements, and infers page purpose.
+ * Service for analyzing live web pages.
+ * Uses JSoup for reliable HTML parsing that works in any environment.
  */
 @Service
 public class WebPageAnalyzerService {
-
-    // Remote WebDriver URL (Browserless.io, Selenium Grid, etc.)
-    // Set SELENIUM_REMOTE_URL env var to use remote browser
-    @Value("${selenium.remote.url:}")
-    private String seleniumRemoteUrl;
 
     private static final Set<String> LOGIN_INDICATORS = Set.of(
             "login", "signin", "sign-in", "log-in", "authenticate", "password", "username");
@@ -40,129 +29,35 @@ public class WebPageAnalyzerService {
     private static final Set<String> CONTACT_INDICATORS = Set.of(
             "contact", "message", "inquiry", "feedback", "support");
 
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
     /**
      * Analyze a live web page and extract all relevant information.
+     * Uses JSoup for reliable HTML parsing without browser dependencies.
      */
     public PageAnalysis analyzePage(String url) {
         long startTime = System.currentTimeMillis();
         List<String> warnings = new ArrayList<>();
 
-        // Check for remote Selenium URL first (Browserless.io, Selenium Grid, etc.)
-        String remoteUrl = seleniumRemoteUrl;
-        if (remoteUrl == null || remoteUrl.isEmpty()) {
-            remoteUrl = System.getenv("SELENIUM_REMOTE_URL");
-        }
-
-        // Initialize options
-        ChromeOptions options = new ChromeOptions();
-
-        WebDriver driver = null;
         try {
-            // Try remote WebDriver first (for cloud deployments)
-            if (remoteUrl != null && !remoteUrl.isEmpty()) {
-                System.out.println("[WebPageAnalyzer] Utilizing Remote WebDriver Configuration");
+            System.out.println("[WebPageAnalyzer] Fetching page: " + url);
 
-                // URL Processing logic (as previously implemented)
-                // Convert wss:// to https:// for Browserless.io compatibility
-                // Browserless.io expects HTTP/HTTPS WebDriver protocol, not WebSocket
-                String httpUrl = remoteUrl;
-                if (httpUrl.startsWith("wss://")) {
-                    httpUrl = httpUrl.replace("wss://", "https://");
-                } else if (httpUrl.startsWith("ws://")) {
-                    httpUrl = httpUrl.replace("ws://", "http://");
-                }
+            // Use JSoup to fetch and parse the page
+            Document doc = Jsoup.connect(url)
+                    .userAgent(USER_AGENT)
+                    .timeout(30000)
+                    .followRedirects(true)
+                    .get();
 
-                // Handle Browserless.io URL format
-                if (httpUrl.contains("browserless.io")) {
-                    // Convert legacy chrome.browserless.io to regional endpoint
-                    if (httpUrl.contains("chrome.browserless.io")) {
-                        httpUrl = httpUrl.replace("chrome.browserless.io", "production-sfo.browserless.io");
-                        System.out.println(
-                                "[WebPageAnalyzer] Converted legacy domain to regional endpoint: production-sfo.browserless.io");
-                    }
+            String title = doc.title();
+            String pageSource = doc.html().toLowerCase();
 
-                    // Ensure /webdriver endpoint is present
-                    if (!httpUrl.contains("/webdriver")) {
-                        int queryIndex = httpUrl.indexOf("?");
-                        if (queryIndex > 0) {
-                            // Insert /webdriver before the query string
-                            httpUrl = httpUrl.substring(0, queryIndex) + "/webdriver" + httpUrl.substring(queryIndex);
-                        } else {
-                            // No query params, just append /webdriver
-                            httpUrl = httpUrl + "/webdriver";
-                        }
-                    }
+            System.out.println("[WebPageAnalyzer] Page fetched successfully: " + title);
 
-                    // Add Browserless-specific options for better stability
-                    options.setCapability("browserless:token", "YOUR-API-TOKEN"); // Token is usually in URL, but good
-                                                                                  // fallback
-                    options.addArguments("--no-sandbox");
-                    options.addArguments("--disable-setuid-sandbox");
-                    options.addArguments("--disable-dev-shm-usage");
-                    options.addArguments("--ignore-certificate-errors");
-
-                    // Stealth mode can help avoid detection
-                    Map<String, Object> stealth = new HashMap<>();
-                    stealth.put("enabled", true);
-                    options.setCapability("browserless.stealth", true);
-
-                    System.out.println("[WebPageAnalyzer] Added Browserless.io specific capabilities");
-                } else {
-                    // Standard Remote Grid options
-                    options.addArguments("--no-sandbox");
-                    options.addArguments("--disable-dev-shm-usage");
-                }
-
-                System.out.println("[WebPageAnalyzer] Connecting to Remote URL: "
-                        + httpUrl.replaceAll("token=[^&]+", "token=***"));
-                driver = new RemoteWebDriver(new URL(httpUrl), options);
-            } else {
-                // Local Chrome Options
-                System.out.println("[WebPageAnalyzer] Configuring Local Chrome Options");
-                options.addArguments("--headless=new");
-                options.addArguments("--disable-gpu");
-                options.addArguments("--window-size=1920,1080");
-                options.addArguments("--no-sandbox");
-                options.addArguments("--disable-dev-shm-usage");
-                options.addArguments("--disable-extensions");
-                options.addArguments("--remote-allow-origins=*");
-                options.addArguments("--disable-background-networking");
-                options.addArguments("--disable-popup-blocking");
-                options.addArguments("--disable-software-rasterizer");
-                options.addArguments("--disable-setuid-sandbox");
-                options.addArguments("--disable-default-apps");
-                options.addArguments("--disable-sync");
-                options.addArguments("--disable-translate");
-                options.addArguments("--hide-scrollbars");
-                options.addArguments("--metrics-recording-only");
-                options.addArguments("--mute-audio");
-                options.addArguments("--safebrowsing-disable-auto-update");
-                options.addArguments(
-                        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-                // Fall back to local Chrome
-                driver = createLocalDriver(options);
-            }
-
-            // Set timeouts
-            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60)); // Increased for remote connections
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-
-            driver.get(url);
-
-            // Wait for page to stabilize - reduced timeout for faster response
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
-            wait.until(d -> ((JavascriptExecutor) d)
-                    .executeScript("return document.readyState").equals("complete"));
-
-            // Extract page information
-            String title = driver.getTitle();
-            String pageSource = driver.getPageSource().toLowerCase();
-
-            // Analyze elements
-            List<PageElement> elements = extractInteractiveElements(driver);
-            List<FormInfo> forms = extractForms(driver);
-            List<LinkInfo> links = extractLinks(driver, url);
+            // Extract elements
+            List<PageElement> elements = extractElements(doc);
+            List<FormInfo> forms = extractForms(doc);
+            List<LinkInfo> links = extractLinks(doc, url);
 
             // Infer page purpose
             String pagePurpose = inferPagePurpose(title, pageSource, elements, forms);
@@ -172,6 +67,12 @@ public class WebPageAnalyzerService {
             List<String> inferredFlows = inferUserFlows(pagePurpose, forms, elements);
             List<String> edgeCases = identifyEdgeCases(pagePurpose, elements, forms);
             List<String> securityConsiderations = identifySecurityConsiderations(pagePurpose, elements, forms);
+
+            // Add note about JavaScript
+            if (pageSource.contains("<script") || pageSource.contains("react") ||
+                pageSource.contains("angular") || pageSource.contains("vue")) {
+                warnings.add("Note: This page may use JavaScript to render content. Some dynamic elements may not be detected.");
+            }
 
             long analysisTime = System.currentTimeMillis() - startTime;
 
@@ -191,39 +92,35 @@ public class WebPageAnalyzerService {
                             .totalElements(elements.size())
                             .totalForms(forms.size())
                             .totalLinks(links.size())
-                            .browser("Chrome (Headless)")
-                            .viewport("1920x1080")
+                            .browser("JSoup HTML Parser")
+                            .viewport("N/A (static analysis)")
                             .warnings(warnings)
                             .build())
                     .build();
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             String errorMessage = e.getMessage();
-            String errorType = e.getClass().getSimpleName();
-
-            // Provide more helpful error messages for common issues
             String userFriendlyMessage;
-            if (errorMessage != null && (errorMessage.contains("ChromeDriver") ||
-                    errorMessage.contains("chrome") || errorMessage.contains("Chrome"))) {
-                userFriendlyMessage = "Chrome browser is not installed or configured. " +
-                        "The live page analysis feature requires Chrome to be installed on the server.";
-                warnings.add("Chrome/ChromeDriver error: " + errorMessage);
-            } else if (errorMessage != null && errorMessage.contains("timeout")) {
-                userFriendlyMessage = "Page load timed out. The target URL may be slow to respond or unreachable.";
-                warnings.add("Timeout error: " + errorMessage);
-            } else if (errorMessage != null && errorMessage.contains("ERR_NAME_NOT_RESOLVED")) {
-                userFriendlyMessage = "Could not resolve the URL. Please check that the URL is correct.";
-                warnings.add("DNS resolution error: " + errorMessage);
+
+            if (errorMessage != null && errorMessage.contains("Status=403")) {
+                userFriendlyMessage = "Access denied (403). The website may be blocking automated requests.";
+            } else if (errorMessage != null && errorMessage.contains("Status=404")) {
+                userFriendlyMessage = "Page not found (404). Please check the URL.";
+            } else if (errorMessage != null && (errorMessage.contains("UnknownHostException") ||
+                       errorMessage.contains("Unable to resolve host"))) {
+                userFriendlyMessage = "Could not resolve the URL. Please check that it's correct.";
+            } else if (errorMessage != null && errorMessage.contains("SocketTimeoutException")) {
+                userFriendlyMessage = "Connection timed out. The server may be slow or unreachable.";
+            } else if (errorMessage != null && errorMessage.contains("SSLHandshakeException")) {
+                userFriendlyMessage = "SSL/TLS error. The site may have certificate issues.";
             } else {
-                userFriendlyMessage = "Failed to analyze page: " + errorMessage;
-                warnings.add("Analysis error (" + errorType + "): " + errorMessage);
+                userFriendlyMessage = "Failed to fetch page: " + (errorMessage != null ? errorMessage : "Unknown error");
             }
 
-            // Log the full error for debugging
+            warnings.add("Error: " + errorMessage);
+
             System.err.println("[WebPageAnalyzer] Error analyzing URL: " + url);
-            System.err.println("[WebPageAnalyzer] Exception type: " + errorType);
             System.err.println("[WebPageAnalyzer] Message: " + errorMessage);
-            e.printStackTrace();
 
             return PageAnalysis.builder()
                     .url(url)
@@ -240,299 +137,302 @@ public class WebPageAnalyzerService {
                             .warnings(warnings)
                             .build())
                     .build();
-        } finally {
-            if (driver != null) {
-                driver.quit();
-            }
         }
     }
 
     /**
-     * Extract all interactive elements from the page using optimized batch
-     * JavaScript extraction.
+     * Extract all interactive elements from the page.
      */
-    private List<PageElement> extractInteractiveElements(WebDriver driver) {
+    private List<PageElement> extractElements(Document doc) {
         List<PageElement> elements = new ArrayList<>();
 
-        try {
-            // Use JavaScript to extract all elements in one call for better performance
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> batchElements = (List<Map<String, Object>>) ((JavascriptExecutor) driver)
-                    .executeScript(BATCH_ELEMENT_EXTRACTION_SCRIPT);
+        // Extract inputs
+        for (Element el : doc.select("input:not([type=hidden])")) {
+            String type = el.attr("type");
+            if (type.isEmpty()) type = "text";
 
-            if (batchElements != null) {
-                for (Map<String, Object> elData : batchElements) {
-                    try {
-                        PageElement element = buildPageElementFromMap(elData, driver);
-                        if (element != null) {
-                            elements.add(element);
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Fallback to traditional extraction if batch fails
-            elements.addAll(extractInputs(driver));
-            elements.addAll(extractButtons(driver));
-            elements.addAll(extractSelects(driver));
-            elements.addAll(extractTextareas(driver));
-            elements.addAll(extractRoleButtons(driver));
+            String id = el.attr("id");
+            String name = el.attr("name");
+            String placeholder = el.attr("placeholder");
+            String ariaLabel = el.attr("aria-label");
+            String label = findLabelFor(doc, el);
+
+            elements.add(PageElement.builder()
+                    .type("input")
+                    .inputType(type)
+                    .id(emptyToNull(id))
+                    .name(emptyToNull(name))
+                    .placeholder(emptyToNull(placeholder))
+                    .ariaLabel(emptyToNull(ariaLabel))
+                    .label(label)
+                    .required(el.hasAttr("required"))
+                    .validationPattern(emptyToNull(el.attr("pattern")))
+                    .minLength(parseInteger(el.attr("minlength")))
+                    .maxLength(parseInteger(el.attr("maxlength")))
+                    .minValue(emptyToNull(el.attr("min")))
+                    .maxValue(emptyToNull(el.attr("max")))
+                    .cssClasses(emptyToNull(el.attr("class")))
+                    .role(emptyToNull(el.attr("role")))
+                    .semanticName(inferSemanticName(type, id, name, placeholder, label, ariaLabel))
+                    .recommendedLocator(generateLocator(id, name, ariaLabel, null, label))
+                    .dataAttributes(extractDataAttributes(el))
+                    .build());
+        }
+
+        // Extract buttons
+        for (Element el : doc.select("button")) {
+            String text = el.text().trim();
+            String id = el.attr("id");
+            String name = el.attr("name");
+            String type = el.attr("type");
+            String ariaLabel = el.attr("aria-label");
+
+            elements.add(PageElement.builder()
+                    .type("button")
+                    .inputType(type.isEmpty() ? "button" : type)
+                    .id(emptyToNull(id))
+                    .name(emptyToNull(name))
+                    .visibleText(emptyToNull(text))
+                    .ariaLabel(emptyToNull(ariaLabel))
+                    .cssClasses(emptyToNull(el.attr("class")))
+                    .semanticName(inferButtonSemanticName(text, id, name, ariaLabel))
+                    .recommendedLocator(generateLocator(id, name, ariaLabel, text, null))
+                    .dataAttributes(extractDataAttributes(el))
+                    .build());
+        }
+
+        // Extract selects
+        for (Element el : doc.select("select")) {
+            String id = el.attr("id");
+            String name = el.attr("name");
+            String ariaLabel = el.attr("aria-label");
+            String label = findLabelFor(doc, el);
+
+            elements.add(PageElement.builder()
+                    .type("select")
+                    .id(emptyToNull(id))
+                    .name(emptyToNull(name))
+                    .ariaLabel(emptyToNull(ariaLabel))
+                    .label(label)
+                    .required(el.hasAttr("required"))
+                    .cssClasses(emptyToNull(el.attr("class")))
+                    .semanticName(inferSemanticName("select", id, name, null, label, ariaLabel))
+                    .recommendedLocator(generateLocator(id, name, ariaLabel, null, label))
+                    .dataAttributes(extractDataAttributes(el))
+                    .build());
+        }
+
+        // Extract textareas
+        for (Element el : doc.select("textarea")) {
+            String id = el.attr("id");
+            String name = el.attr("name");
+            String placeholder = el.attr("placeholder");
+            String ariaLabel = el.attr("aria-label");
+            String label = findLabelFor(doc, el);
+
+            elements.add(PageElement.builder()
+                    .type("textarea")
+                    .id(emptyToNull(id))
+                    .name(emptyToNull(name))
+                    .placeholder(emptyToNull(placeholder))
+                    .ariaLabel(emptyToNull(ariaLabel))
+                    .label(label)
+                    .required(el.hasAttr("required"))
+                    .minLength(parseInteger(el.attr("minlength")))
+                    .maxLength(parseInteger(el.attr("maxlength")))
+                    .cssClasses(emptyToNull(el.attr("class")))
+                    .semanticName(inferSemanticName("textarea", id, name, placeholder, label, ariaLabel))
+                    .recommendedLocator(generateLocator(id, name, ariaLabel, null, label))
+                    .dataAttributes(extractDataAttributes(el))
+                    .build());
+        }
+
+        // Extract role=button elements
+        for (Element el : doc.select("[role=button]:not(button)")) {
+            String text = el.text().trim();
+            String id = el.attr("id");
+            String ariaLabel = el.attr("aria-label");
+
+            elements.add(PageElement.builder()
+                    .type("role-button")
+                    .id(emptyToNull(id))
+                    .visibleText(emptyToNull(text))
+                    .ariaLabel(emptyToNull(ariaLabel))
+                    .role("button")
+                    .cssClasses(emptyToNull(el.attr("class")))
+                    .semanticName(inferButtonSemanticName(text, id, null, ariaLabel))
+                    .recommendedLocator(generateLocator(id, null, ariaLabel, text, null))
+                    .dataAttributes(extractDataAttributes(el))
+                    .build());
         }
 
         return elements;
     }
 
     /**
-     * Create a local Chrome WebDriver instance.
+     * Extract forms from the page.
      */
-    private WebDriver createLocalDriver(ChromeOptions options) {
-        // Check for pre-installed ChromeDriver
-        String chromeDriverPath = System.getenv("CHROMEDRIVER_PATH");
-        String chromeBinPath = System.getenv("CHROME_BIN");
+    private List<FormInfo> extractForms(Document doc) {
+        List<FormInfo> forms = new ArrayList<>();
 
-        System.out.println("[WebPageAnalyzer] Creating local driver:");
-        System.out.println("  CHROMEDRIVER_PATH=" + chromeDriverPath);
-        System.out.println("  CHROME_BIN=" + chromeBinPath);
+        for (Element form : doc.select("form")) {
+            String id = form.attr("id");
+            String name = form.attr("name");
+            String action = form.attr("action");
+            String method = form.attr("method");
 
-        // Possible ChromeDriver paths
-        String[] possibleDriverPaths = {
-                chromeDriverPath,
-                "/usr/local/bin/chromedriver",
-                "/usr/bin/chromedriver"
-        };
+            List<PageElement> fields = new ArrayList<>();
 
-        // Possible Chrome binary paths
-        String[] possibleChromePaths = {
-                chromeBinPath,
-                "/usr/bin/google-chrome",
-                "/opt/chrome-linux64/chrome",
-                "/usr/bin/google-chrome-stable",
-                "/opt/google/chrome/chrome",
-                "/usr/bin/chromium-browser",
-                "/usr/bin/chromium"
-        };
+            for (Element el : form.select("input:not([type=hidden])")) {
+                String type = el.attr("type");
+                if (type.isEmpty()) type = "text";
+                String elId = el.attr("id");
+                String elName = el.attr("name");
+                String label = findLabelFor(doc, el);
 
-        // Find and set ChromeDriver path
-        boolean driverFound = false;
-        for (String path : possibleDriverPaths) {
-            if (path != null && !path.isEmpty() && new File(path).exists()) {
-                System.out.println("[WebPageAnalyzer] Using ChromeDriver: " + path);
-                System.setProperty("webdriver.chrome.driver", path);
-                driverFound = true;
-                break;
+                fields.add(PageElement.builder()
+                        .type("input")
+                        .inputType(type)
+                        .id(emptyToNull(elId))
+                        .name(emptyToNull(elName))
+                        .label(label)
+                        .required(el.hasAttr("required"))
+                        .semanticName(inferSemanticName(type, elId, elName, el.attr("placeholder"), label, el.attr("aria-label")))
+                        .build());
             }
-        }
 
-        if (!driverFound) {
-            System.out.println("[WebPageAnalyzer] Using WebDriverManager");
-            WebDriverManager.chromedriver().setup();
-        }
+            for (Element el : form.select("select")) {
+                String elId = el.attr("id");
+                String elName = el.attr("name");
+                String label = findLabelFor(doc, el);
 
-        // Find and set Chrome binary path
-        for (String path : possibleChromePaths) {
-            if (path != null && !path.isEmpty() && new File(path).exists()) {
-                System.out.println("[WebPageAnalyzer] Using Chrome binary: " + path);
-                options.setBinary(path);
-                break;
+                fields.add(PageElement.builder()
+                        .type("select")
+                        .id(emptyToNull(elId))
+                        .name(emptyToNull(elName))
+                        .label(label)
+                        .required(el.hasAttr("required"))
+                        .semanticName(inferSemanticName("select", elId, elName, null, label, el.attr("aria-label")))
+                        .build());
             }
+
+            for (Element el : form.select("textarea")) {
+                String elId = el.attr("id");
+                String elName = el.attr("name");
+                String label = findLabelFor(doc, el);
+
+                fields.add(PageElement.builder()
+                        .type("textarea")
+                        .id(emptyToNull(elId))
+                        .name(emptyToNull(elName))
+                        .label(label)
+                        .required(el.hasAttr("required"))
+                        .semanticName(inferSemanticName("textarea", elId, elName, el.attr("placeholder"), label, el.attr("aria-label")))
+                        .build());
+            }
+
+            // Find submit button
+            PageElement submitButton = null;
+            Element submitEl = form.selectFirst("button[type=submit], input[type=submit], button:not([type])");
+            if (submitEl != null) {
+                String btnText = submitEl.tagName().equals("input") ? submitEl.attr("value") : submitEl.text().trim();
+                submitButton = PageElement.builder()
+                        .type(submitEl.tagName())
+                        .inputType("submit")
+                        .visibleText(emptyToNull(btnText))
+                        .id(emptyToNull(submitEl.attr("id")))
+                        .build();
+            }
+
+            // Check for CSRF token
+            boolean hasCsrf = !form.select("input[name*=csrf], input[name*=token], input[name*=_token]").isEmpty();
+
+            String purpose = inferFormPurpose(id, name, action, fields);
+
+            forms.add(FormInfo.builder()
+                    .identifier(id != null && !id.isEmpty() ? id : name)
+                    .action(emptyToNull(action))
+                    .method(method.isEmpty() ? "GET" : method.toUpperCase())
+                    .purpose(purpose)
+                    .fields(fields)
+                    .submitButton(submitButton)
+                    .hasCsrfToken(hasCsrf)
+                    .validationMessages(new ArrayList<>())
+                    .build());
         }
 
-        return new ChromeDriver(options);
+        return forms;
     }
 
     /**
-     * JavaScript for batch element extraction - significantly faster than
-     * individual Selenium calls.
+     * Extract navigation links.
      */
-    private static final String BATCH_ELEMENT_EXTRACTION_SCRIPT = """
-            (function() {
-                var results = [];
-                var maxElements = 100; // Limit to prevent slow pages
+    private List<LinkInfo> extractLinks(Document doc, String baseUrl) {
+        List<LinkInfo> links = new ArrayList<>();
+        String baseDomain = extractDomain(baseUrl);
+        int count = 0;
+        int maxLinks = 50;
 
-                function getLabelFor(el) {
-                    if (el.id) {
-                        var label = document.querySelector('label[for="' + el.id + '"]');
-                        if (label) return label.textContent.trim();
-                    }
-                    var parent = el.closest('label');
-                    if (parent) return parent.textContent.trim();
-                    return null;
-                }
+        for (Element anchor : doc.select("a[href]")) {
+            if (count >= maxLinks) break;
 
-                function getDataAttributes(el) {
-                    var data = {};
-                    Array.from(el.attributes).forEach(function(attr) {
-                        if (attr.name.startsWith('data-')) {
-                            data[attr.name.substring(5)] = attr.value;
-                        }
-                    });
-                    return data;
-                }
+            String href = anchor.attr("abs:href");
+            String text = anchor.text().trim();
 
-                // Extract inputs (excluding hidden)
-                var inputs = document.querySelectorAll('input:not([type="hidden"])');
-                for (var i = 0; i < Math.min(inputs.length, maxElements); i++) {
-                    var el = inputs[i];
-                    results.push({
-                        type: 'input',
-                        inputType: el.type || 'text',
-                        id: el.id || null,
-                        name: el.name || null,
-                        placeholder: el.placeholder || null,
-                        ariaLabel: el.getAttribute('aria-label'),
-                        label: getLabelFor(el),
-                        required: el.required,
-                        pattern: el.pattern || null,
-                        minLength: el.minLength > 0 ? el.minLength : null,
-                        maxLength: el.maxLength > 0 ? el.maxLength : null,
-                        min: el.min || null,
-                        max: el.max || null,
-                        cssClasses: el.className || null,
-                        role: el.getAttribute('role'),
-                        dataAttributes: getDataAttributes(el)
-                    });
-                }
+            if (href.isEmpty() || href.startsWith("#") || href.startsWith("javascript:")) {
+                continue;
+            }
 
-                // Extract buttons
-                var buttons = document.querySelectorAll('button');
-                for (var i = 0; i < Math.min(buttons.length, maxElements); i++) {
-                    var el = buttons[i];
-                    results.push({
-                        type: 'button',
-                        inputType: el.type || 'button',
-                        id: el.id || null,
-                        name: el.name || null,
-                        visibleText: el.textContent.trim(),
-                        ariaLabel: el.getAttribute('aria-label'),
-                        cssClasses: el.className || null,
-                        dataAttributes: getDataAttributes(el)
-                    });
-                }
+            boolean isInternal = href.contains(baseDomain) || anchor.attr("href").startsWith("/");
+            String purpose = inferLinkPurpose(text, href);
 
-                // Extract selects
-                var selects = document.querySelectorAll('select');
-                for (var i = 0; i < Math.min(selects.length, maxElements); i++) {
-                    var el = selects[i];
-                    results.push({
-                        type: 'select',
-                        id: el.id || null,
-                        name: el.name || null,
-                        ariaLabel: el.getAttribute('aria-label'),
-                        label: getLabelFor(el),
-                        required: el.required,
-                        cssClasses: el.className || null,
-                        dataAttributes: getDataAttributes(el)
-                    });
-                }
+            links.add(LinkInfo.builder()
+                    .text(text.isEmpty() ? anchor.attr("aria-label") : text)
+                    .href(href)
+                    .internal(isInternal)
+                    .purpose(purpose)
+                    .build());
 
-                // Extract textareas
-                var textareas = document.querySelectorAll('textarea');
-                for (var i = 0; i < Math.min(textareas.length, maxElements); i++) {
-                    var el = textareas[i];
-                    results.push({
-                        type: 'textarea',
-                        id: el.id || null,
-                        name: el.name || null,
-                        placeholder: el.placeholder || null,
-                        ariaLabel: el.getAttribute('aria-label'),
-                        label: getLabelFor(el),
-                        required: el.required,
-                        minLength: el.minLength > 0 ? el.minLength : null,
-                        maxLength: el.maxLength > 0 ? el.maxLength : null,
-                        cssClasses: el.className || null,
-                        dataAttributes: getDataAttributes(el)
-                    });
-                }
-
-                // Extract role=button elements (excluding actual buttons)
-                var roleButtons = document.querySelectorAll('[role="button"]:not(button)');
-                for (var i = 0; i < Math.min(roleButtons.length, maxElements); i++) {
-                    var el = roleButtons[i];
-                    results.push({
-                        type: 'role-button',
-                        id: el.id || null,
-                        visibleText: el.textContent.trim(),
-                        ariaLabel: el.getAttribute('aria-label'),
-                        role: 'button',
-                        cssClasses: el.className || null,
-                        dataAttributes: getDataAttributes(el)
-                    });
-                }
-
-                return results;
-            })();
-            """;
-
-    /**
-     * Build PageElement from JavaScript extraction map.
-     */
-    private PageElement buildPageElementFromMap(Map<String, Object> data, WebDriver driver) {
-        String type = (String) data.get("type");
-        String inputType = (String) data.get("inputType");
-        String id = (String) data.get("id");
-        String name = (String) data.get("name");
-        String placeholder = (String) data.get("placeholder");
-        String ariaLabel = (String) data.get("ariaLabel");
-        String label = (String) data.get("label");
-        String visibleText = (String) data.get("visibleText");
-        Boolean required = data.get("required") instanceof Boolean ? (Boolean) data.get("required") : false;
-        String pattern = (String) data.get("pattern");
-        String cssClasses = (String) data.get("cssClasses");
-        String role = (String) data.get("role");
-
-        Integer minLength = data.get("minLength") instanceof Number ? ((Number) data.get("minLength")).intValue()
-                : null;
-        Integer maxLength = data.get("maxLength") instanceof Number ? ((Number) data.get("maxLength")).intValue()
-                : null;
-        String min = (String) data.get("min");
-        String max = (String) data.get("max");
-
-        @SuppressWarnings("unchecked")
-        Map<String, String> dataAttributes = data.get("dataAttributes") instanceof Map
-                ? convertToStringMap((Map<String, Object>) data.get("dataAttributes"))
-                : new HashMap<>();
-
-        String semanticName = inferSemanticName(type, id, name, placeholder, label, ariaLabel);
-        if (semanticName == null && visibleText != null && !visibleText.isEmpty()) {
-            semanticName = visibleText;
+            count++;
         }
 
-        String recommendedLocator = generateRecommendedLocatorFromData(id, name, ariaLabel, visibleText, label);
-
-        return PageElement.builder()
-                .type(type)
-                .inputType(inputType)
-                .id(id)
-                .name(name)
-                .placeholder(placeholder)
-                .ariaLabel(ariaLabel)
-                .label(label)
-                .visibleText(visibleText)
-                .required(required)
-                .validationPattern(pattern)
-                .minLength(minLength)
-                .maxLength(maxLength)
-                .minValue(min)
-                .maxValue(max)
-                .cssClasses(cssClasses)
-                .role(role)
-                .semanticName(semanticName)
-                .recommendedLocator(recommendedLocator)
-                .dataAttributes(dataAttributes)
-                .build();
+        return links;
     }
 
-    private Map<String, String> convertToStringMap(Map<String, Object> map) {
-        Map<String, String> result = new HashMap<>();
-        if (map != null) {
-            map.forEach((k, v) -> result.put(k, v != null ? String.valueOf(v) : null));
+    // Helper methods
+
+    private String findLabelFor(Document doc, Element el) {
+        String id = el.attr("id");
+        if (!id.isEmpty()) {
+            Element label = doc.selectFirst("label[for=" + id + "]");
+            if (label != null) {
+                return label.text().trim();
+            }
         }
-        return result;
+
+        // Check parent label
+        Element parent = el.parent();
+        while (parent != null) {
+            if (parent.tagName().equals("label")) {
+                return parent.text().trim();
+            }
+            parent = parent.parent();
+        }
+
+        return null;
     }
 
-    private String generateRecommendedLocatorFromData(String id, String name, String ariaLabel, String text,
-            String label) {
+    private Map<String, String> extractDataAttributes(Element el) {
+        Map<String, String> dataAttrs = new HashMap<>();
+        el.attributes().forEach(attr -> {
+            if (attr.getKey().startsWith("data-")) {
+                dataAttrs.put(attr.getKey().substring(5), attr.getValue());
+            }
+        });
+        return dataAttrs;
+    }
+
+    private String generateLocator(String id, String name, String ariaLabel, String text, String label) {
         if (id != null && !id.isEmpty()) {
             return "By.id(\"" + id + "\")";
         }
@@ -551,409 +451,75 @@ public class WebPageAnalyzerService {
         return "// Custom locator needed";
     }
 
-    /**
-     * Extract all interactive elements from the page (fallback method).
-     */
-    private List<PageElement> extractInteractiveElementsFallback(WebDriver driver) {
-        List<PageElement> elements = new ArrayList<>();
-
-        // Input elements
-        elements.addAll(extractInputs(driver));
-
-        // Buttons
-        elements.addAll(extractButtons(driver));
-
-        // Select dropdowns
-        elements.addAll(extractSelects(driver));
-
-        // Textareas
-        elements.addAll(extractTextareas(driver));
-
-        // Clickable elements with role=button
-        elements.addAll(extractRoleButtons(driver));
-
-        return elements;
+    private String inferSemanticName(String type, String id, String name, String placeholder, String label, String ariaLabel) {
+        if (label != null && !label.isEmpty()) return label;
+        if (ariaLabel != null && !ariaLabel.isEmpty()) return ariaLabel;
+        if (placeholder != null && !placeholder.isEmpty()) return placeholder;
+        if (name != null && !name.isEmpty()) return humanize(name);
+        if (id != null && !id.isEmpty()) return humanize(id);
+        return type + " field";
     }
 
-    private List<PageElement> extractInputs(WebDriver driver) {
-        List<PageElement> inputs = new ArrayList<>();
-        List<WebElement> inputElements = driver.findElements(By.tagName("input"));
-
-        for (WebElement el : inputElements) {
-            try {
-                String type = el.getAttribute("type");
-                if (type == null)
-                    type = "text";
-
-                // Skip hidden inputs for main analysis
-                if ("hidden".equals(type))
-                    continue;
-
-                String id = el.getAttribute("id");
-                String name = el.getAttribute("name");
-                String placeholder = el.getAttribute("placeholder");
-                String ariaLabel = el.getAttribute("aria-label");
-                String label = findLabelForElement(driver, el);
-
-                inputs.add(PageElement.builder()
-                        .type("input")
-                        .inputType(type)
-                        .id(id)
-                        .name(name)
-                        .placeholder(placeholder)
-                        .ariaLabel(ariaLabel)
-                        .label(label)
-                        .required(el.getAttribute("required") != null)
-                        .validationPattern(el.getAttribute("pattern"))
-                        .minLength(parseInteger(el.getAttribute("minlength")))
-                        .maxLength(parseInteger(el.getAttribute("maxlength")))
-                        .minValue(el.getAttribute("min"))
-                        .maxValue(el.getAttribute("max"))
-                        .cssClasses(el.getAttribute("class"))
-                        .role(el.getAttribute("role"))
-                        .semanticName(inferSemanticName(type, id, name, placeholder, label, ariaLabel))
-                        .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
-                        .dataAttributes(extractDataAttributes(el))
-                        .build());
-            } catch (StaleElementReferenceException ignored) {
-            }
-        }
-        return inputs;
+    private String inferButtonSemanticName(String text, String id, String name, String ariaLabel) {
+        if (text != null && !text.isEmpty()) return text;
+        if (ariaLabel != null && !ariaLabel.isEmpty()) return ariaLabel;
+        if (name != null && !name.isEmpty()) return humanize(name);
+        if (id != null && !id.isEmpty()) return humanize(id);
+        return "button";
     }
 
-    private List<PageElement> extractButtons(WebDriver driver) {
-        List<PageElement> buttons = new ArrayList<>();
-        List<WebElement> buttonElements = driver.findElements(By.tagName("button"));
-
-        for (WebElement el : buttonElements) {
-            try {
-                String text = el.getText().trim();
-                String id = el.getAttribute("id");
-                String name = el.getAttribute("name");
-                String type = el.getAttribute("type");
-                String ariaLabel = el.getAttribute("aria-label");
-
-                buttons.add(PageElement.builder()
-                        .type("button")
-                        .inputType(type != null ? type : "button")
-                        .id(id)
-                        .name(name)
-                        .visibleText(text)
-                        .ariaLabel(ariaLabel)
-                        .cssClasses(el.getAttribute("class"))
-                        .semanticName(inferButtonSemanticName(text, id, name, ariaLabel))
-                        .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, text))
-                        .dataAttributes(extractDataAttributes(el))
-                        .build());
-            } catch (StaleElementReferenceException ignored) {
-            }
-        }
-        return buttons;
+    private String humanize(String text) {
+        if (text == null) return "";
+        return text.replaceAll("([a-z])([A-Z])", "$1 $2")
+                .replaceAll("[_-]", " ")
+                .trim();
     }
 
-    private List<PageElement> extractSelects(WebDriver driver) {
-        List<PageElement> selects = new ArrayList<>();
-        List<WebElement> selectElements = driver.findElements(By.tagName("select"));
-
-        for (WebElement el : selectElements) {
-            try {
-                String id = el.getAttribute("id");
-                String name = el.getAttribute("name");
-                String ariaLabel = el.getAttribute("aria-label");
-                String label = findLabelForElement(driver, el);
-
-                selects.add(PageElement.builder()
-                        .type("select")
-                        .id(id)
-                        .name(name)
-                        .ariaLabel(ariaLabel)
-                        .label(label)
-                        .required(el.getAttribute("required") != null)
-                        .cssClasses(el.getAttribute("class"))
-                        .semanticName(inferSemanticName("select", id, name, null, label, ariaLabel))
-                        .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
-                        .dataAttributes(extractDataAttributes(el))
-                        .build());
-            } catch (StaleElementReferenceException ignored) {
-            }
-        }
-        return selects;
+    private String emptyToNull(String s) {
+        return (s == null || s.isEmpty()) ? null : s;
     }
 
-    private List<PageElement> extractTextareas(WebDriver driver) {
-        List<PageElement> textareas = new ArrayList<>();
-        List<WebElement> textareaElements = driver.findElements(By.tagName("textarea"));
-
-        for (WebElement el : textareaElements) {
-            try {
-                String id = el.getAttribute("id");
-                String name = el.getAttribute("name");
-                String placeholder = el.getAttribute("placeholder");
-                String ariaLabel = el.getAttribute("aria-label");
-                String label = findLabelForElement(driver, el);
-
-                textareas.add(PageElement.builder()
-                        .type("textarea")
-                        .id(id)
-                        .name(name)
-                        .placeholder(placeholder)
-                        .ariaLabel(ariaLabel)
-                        .label(label)
-                        .required(el.getAttribute("required") != null)
-                        .minLength(parseInteger(el.getAttribute("minlength")))
-                        .maxLength(parseInteger(el.getAttribute("maxlength")))
-                        .cssClasses(el.getAttribute("class"))
-                        .semanticName(inferSemanticName("textarea", id, name, placeholder, label, ariaLabel))
-                        .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
-                        .dataAttributes(extractDataAttributes(el))
-                        .build());
-            } catch (StaleElementReferenceException ignored) {
-            }
-        }
-        return textareas;
-    }
-
-    private List<PageElement> extractRoleButtons(WebDriver driver) {
-        List<PageElement> roleButtons = new ArrayList<>();
-        List<WebElement> elements = driver.findElements(By.cssSelector("[role='button']"));
-
-        for (WebElement el : elements) {
-            try {
-                // Skip actual buttons already captured
-                if ("button".equalsIgnoreCase(el.getTagName()))
-                    continue;
-
-                String text = el.getText().trim();
-                String id = el.getAttribute("id");
-                String ariaLabel = el.getAttribute("aria-label");
-
-                roleButtons.add(PageElement.builder()
-                        .type("role-button")
-                        .id(id)
-                        .visibleText(text)
-                        .ariaLabel(ariaLabel)
-                        .role("button")
-                        .cssClasses(el.getAttribute("class"))
-                        .semanticName(inferButtonSemanticName(text, id, null, ariaLabel))
-                        .recommendedLocator(generateRecommendedLocator(el, id, null, ariaLabel, text))
-                        .dataAttributes(extractDataAttributes(el))
-                        .build());
-            } catch (StaleElementReferenceException ignored) {
-            }
-        }
-        return roleButtons;
-    }
-
-    /**
-     * Extract forms from the page.
-     */
-    private List<FormInfo> extractForms(WebDriver driver) {
-        List<FormInfo> forms = new ArrayList<>();
-        List<WebElement> formElements = driver.findElements(By.tagName("form"));
-
-        for (WebElement form : formElements) {
-            try {
-                String id = form.getAttribute("id");
-                String name = form.getAttribute("name");
-                String action = form.getAttribute("action");
-                String method = form.getAttribute("method");
-
-                List<PageElement> fields = new ArrayList<>();
-                List<WebElement> formInputs = form.findElements(By.tagName("input"));
-                List<WebElement> formSelects = form.findElements(By.tagName("select"));
-                List<WebElement> formTextareas = form.findElements(By.tagName("textarea"));
-
-                for (WebElement el : formInputs) {
-                    String type = el.getAttribute("type");
-                    if ("hidden".equals(type))
-                        continue;
-                    fields.add(buildPageElementFromWebElement(driver, el, "input"));
-                }
-                for (WebElement el : formSelects) {
-                    fields.add(buildPageElementFromWebElement(driver, el, "select"));
-                }
-                for (WebElement el : formTextareas) {
-                    fields.add(buildPageElementFromWebElement(driver, el, "textarea"));
-                }
-
-                // Find submit button
-                PageElement submitButton = null;
-                List<WebElement> buttons = form.findElements(By.tagName("button"));
-                for (WebElement btn : buttons) {
-                    String type = btn.getAttribute("type");
-                    if ("submit".equals(type) || type == null) {
-                        submitButton = PageElement.builder()
-                                .type("button")
-                                .inputType("submit")
-                                .visibleText(btn.getText().trim())
-                                .id(btn.getAttribute("id"))
-                                .build();
-                        break;
-                    }
-                }
-                if (submitButton == null) {
-                    List<WebElement> submitInputs = form.findElements(By.cssSelector("input[type='submit']"));
-                    if (!submitInputs.isEmpty()) {
-                        WebElement si = submitInputs.get(0);
-                        submitButton = PageElement.builder()
-                                .type("input")
-                                .inputType("submit")
-                                .visibleText(si.getAttribute("value"))
-                                .id(si.getAttribute("id"))
-                                .build();
-                    }
-                }
-
-                // Check for CSRF token
-                boolean hasCsrf = !form.findElements(By.cssSelector("input[name*='csrf'], input[name*='token']"))
-                        .isEmpty();
-
-                // Extract validation messages
-                List<String> validationMessages = new ArrayList<>();
-                List<WebElement> errorElements = form
-                        .findElements(By.cssSelector("[class*='error'], [class*='invalid'], [role='alert']"));
-                for (WebElement err : errorElements) {
-                    String text = err.getText().trim();
-                    if (!text.isEmpty()) {
-                        validationMessages.add(text);
-                    }
-                }
-
-                String purpose = inferFormPurpose(id, name, action, fields);
-
-                forms.add(FormInfo.builder()
-                        .identifier(id != null ? id : name)
-                        .action(action)
-                        .method(method != null ? method.toUpperCase() : "GET")
-                        .purpose(purpose)
-                        .fields(fields)
-                        .submitButton(submitButton)
-                        .hasCsrfToken(hasCsrf)
-                        .validationMessages(validationMessages)
-                        .build());
-
-            } catch (StaleElementReferenceException ignored) {
-            }
-        }
-        return forms;
-    }
-
-    /**
-     * Extract navigation links using optimized batch JavaScript extraction.
-     */
-    private List<LinkInfo> extractLinks(WebDriver driver, String baseUrl) {
-        List<LinkInfo> links = new ArrayList<>();
-        String baseDomain = extractDomain(baseUrl);
-
+    private Integer parseInteger(String value) {
+        if (value == null || value.isEmpty()) return null;
         try {
-            // Use JavaScript to extract all links in one call
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> batchLinks = (List<Map<String, Object>>) ((JavascriptExecutor) driver)
-                    .executeScript(BATCH_LINK_EXTRACTION_SCRIPT);
-
-            if (batchLinks != null) {
-                for (Map<String, Object> linkData : batchLinks) {
-                    String href = (String) linkData.get("href");
-                    String text = (String) linkData.get("text");
-                    String ariaLabel = (String) linkData.get("ariaLabel");
-
-                    if (href == null || href.isEmpty() || href.startsWith("#") || href.startsWith("javascript:")) {
-                        continue;
-                    }
-
-                    boolean isInternal = href.contains(baseDomain) || href.startsWith("/");
-                    String displayText = (text != null && !text.isEmpty()) ? text : ariaLabel;
-                    String purpose = inferLinkPurpose(displayText, href);
-
-                    links.add(LinkInfo.builder()
-                            .text(displayText)
-                            .href(href)
-                            .internal(isInternal)
-                            .purpose(purpose)
-                            .build());
-                }
-            }
-        } catch (Exception e) {
-            // Fallback to traditional extraction
-            List<WebElement> anchorElements = driver.findElements(By.tagName("a"));
-            for (WebElement anchor : anchorElements) {
-                try {
-                    String href = anchor.getAttribute("href");
-                    String text = anchor.getText().trim();
-
-                    if (href == null || href.isEmpty() || href.startsWith("#") || href.startsWith("javascript:")) {
-                        continue;
-                    }
-
-                    boolean isInternal = href.contains(baseDomain) || href.startsWith("/");
-                    String purpose = inferLinkPurpose(text, href);
-
-                    links.add(LinkInfo.builder()
-                            .text(text.isEmpty() ? anchor.getAttribute("aria-label") : text)
-                            .href(href)
-                            .internal(isInternal)
-                            .purpose(purpose)
-                            .build());
-                } catch (StaleElementReferenceException ignored) {
-                }
-            }
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return null;
         }
-        return links;
     }
 
-    /**
-     * JavaScript for batch link extraction.
-     */
-    private static final String BATCH_LINK_EXTRACTION_SCRIPT = """
-            (function() {
-                var results = [];
-                var maxLinks = 50; // Limit to prevent slow pages
-                var anchors = document.querySelectorAll('a[href]');
+    private String extractDomain(String url) {
+        try {
+            java.net.URL parsed = new java.net.URL(url);
+            return parsed.getHost();
+        } catch (Exception e) {
+            return "";
+        }
+    }
 
-                for (var i = 0; i < Math.min(anchors.length, maxLinks); i++) {
-                    var el = anchors[i];
-                    results.push({
-                        href: el.href,
-                        text: el.textContent.trim(),
-                        ariaLabel: el.getAttribute('aria-label')
-                    });
-                }
-                return results;
-            })();
-            """;
+    private boolean containsAny(String text, Set<String> indicators) {
+        return indicators.stream().anyMatch(text::contains);
+    }
 
-    /**
-     * Infer the purpose of the page based on various signals.
-     */
     private String inferPagePurpose(String title, String pageSource, List<PageElement> elements, List<FormInfo> forms) {
         String titleLower = title != null ? title.toLowerCase() : "";
         String combined = titleLower + " " + pageSource;
 
-        // Check forms first
         for (FormInfo form : forms) {
             if (form.getPurpose() != null && !form.getPurpose().equals("general")) {
                 return form.getPurpose();
             }
         }
 
-        // Check indicators
-        if (containsAny(combined, LOGIN_INDICATORS))
-            return "login";
-        if (containsAny(combined, SIGNUP_INDICATORS))
-            return "registration";
-        if (containsAny(combined, SEARCH_INDICATORS))
-            return "search";
-        if (containsAny(combined, CHECKOUT_INDICATORS))
-            return "checkout";
-        if (containsAny(combined, CONTACT_INDICATORS))
-            return "contact";
+        if (containsAny(combined, LOGIN_INDICATORS)) return "login";
+        if (containsAny(combined, SIGNUP_INDICATORS)) return "registration";
+        if (containsAny(combined, SEARCH_INDICATORS)) return "search";
+        if (containsAny(combined, CHECKOUT_INDICATORS)) return "checkout";
+        if (containsAny(combined, CONTACT_INDICATORS)) return "contact";
 
-        // Check element patterns
-        boolean hasPasswordField = elements.stream()
-                .anyMatch(e -> "password".equals(e.getInputType()));
-        boolean hasEmailField = elements.stream()
-                .anyMatch(e -> "email".equals(e.getInputType()) ||
-                        (e.getName() != null && e.getName().toLowerCase().contains("email")));
+        boolean hasPasswordField = elements.stream().anyMatch(e -> "password".equals(e.getInputType()));
+        boolean hasEmailField = elements.stream().anyMatch(e -> "email".equals(e.getInputType()) ||
+                (e.getName() != null && e.getName().toLowerCase().contains("email")));
 
         if (hasPasswordField && hasEmailField) {
             if (elements.stream().anyMatch(e -> e.getSemanticName() != null &&
@@ -963,43 +529,57 @@ public class WebPageAnalyzerService {
             return "login";
         }
 
-        if (combined.contains("dashboard"))
-            return "dashboard";
-        if (combined.contains("profile"))
-            return "profile";
-        if (combined.contains("settings"))
-            return "settings";
+        if (combined.contains("dashboard")) return "dashboard";
+        if (combined.contains("profile")) return "profile";
+        if (combined.contains("settings")) return "settings";
 
         return "general";
     }
 
-    /**
-     * Generate a human-readable description of the page.
-     */
+    private String inferFormPurpose(String id, String name, String action, List<PageElement> fields) {
+        String combined = ((id != null ? id : "") + " " + (name != null ? name : "") + " " + (action != null ? action : "")).toLowerCase();
+
+        if (containsAny(combined, LOGIN_INDICATORS)) return "login";
+        if (containsAny(combined, SIGNUP_INDICATORS)) return "registration";
+        if (containsAny(combined, SEARCH_INDICATORS)) return "search";
+        if (containsAny(combined, CONTACT_INDICATORS)) return "contact";
+
+        boolean hasPassword = fields.stream().anyMatch(f -> "password".equals(f.getInputType()));
+        boolean hasEmail = fields.stream().anyMatch(f -> "email".equals(f.getInputType()));
+
+        if (hasPassword && hasEmail) {
+            if (fields.stream().anyMatch(f -> f.getName() != null && f.getName().toLowerCase().contains("confirm"))) {
+                return "registration";
+            }
+            return "login";
+        }
+
+        return "general";
+    }
+
+    private String inferLinkPurpose(String text, String href) {
+        String combined = (text + " " + href).toLowerCase();
+        if (containsAny(combined, LOGIN_INDICATORS)) return "authentication";
+        if (containsAny(combined, SIGNUP_INDICATORS)) return "registration";
+        if (combined.contains("logout") || combined.contains("sign out")) return "logout";
+        if (combined.contains("home")) return "home navigation";
+        if (combined.contains("about")) return "about page";
+        if (combined.contains("contact")) return "contact page";
+        if (combined.contains("help") || combined.contains("faq")) return "help/support";
+        return "navigation";
+    }
+
     private String generatePageDescription(String purpose, List<FormInfo> forms, List<PageElement> elements) {
         StringBuilder desc = new StringBuilder();
 
         switch (purpose) {
-            case "login":
-                desc.append("A login page that allows users to authenticate with their credentials.");
-                break;
-            case "registration":
-                desc.append("A registration page for creating new user accounts.");
-                break;
-            case "search":
-                desc.append("A search page that allows users to find content or items.");
-                break;
-            case "checkout":
-                desc.append("A checkout page for completing purchases or transactions.");
-                break;
-            case "contact":
-                desc.append("A contact form page for sending messages or inquiries.");
-                break;
-            case "dashboard":
-                desc.append("A dashboard page displaying user-specific information and controls.");
-                break;
-            default:
-                desc.append("A general web page with interactive elements.");
+            case "login" -> desc.append("A login page that allows users to authenticate with their credentials.");
+            case "registration" -> desc.append("A registration page for creating new user accounts.");
+            case "search" -> desc.append("A search page that allows users to find content or items.");
+            case "checkout" -> desc.append("A checkout page for completing purchases or transactions.");
+            case "contact" -> desc.append("A contact form page for sending messages or inquiries.");
+            case "dashboard" -> desc.append("A dashboard page displaying user-specific information and controls.");
+            default -> desc.append("A general web page with interactive elements.");
         }
 
         if (!forms.isEmpty()) {
@@ -1017,74 +597,64 @@ public class WebPageAnalyzerService {
         return desc.toString();
     }
 
-    /**
-     * Infer possible user flows based on page structure.
-     */
     private List<String> inferUserFlows(String purpose, List<FormInfo> forms, List<PageElement> elements) {
         List<String> flows = new ArrayList<>();
 
         switch (purpose) {
-            case "login":
+            case "login" -> {
                 flows.add("User enters valid credentials and successfully logs in");
                 flows.add("User enters invalid credentials and sees error message");
                 flows.add("User leaves required fields empty and sees validation errors");
                 flows.add("User clicks 'forgot password' link if available");
-                break;
-            case "registration":
+            }
+            case "registration" -> {
                 flows.add("User fills all required fields with valid data and registers successfully");
                 flows.add("User submits form with invalid email format");
                 flows.add("User enters mismatched passwords (if confirmation field exists)");
                 flows.add("User tries to register with existing email/username");
-                break;
-            case "search":
+            }
+            case "search" -> {
                 flows.add("User enters search term and receives relevant results");
                 flows.add("User searches with empty query");
                 flows.add("User searches with special characters");
                 flows.add("User filters or sorts search results");
-                break;
-            case "checkout":
+            }
+            case "checkout" -> {
                 flows.add("User completes checkout with valid payment details");
                 flows.add("User enters invalid payment information");
                 flows.add("User modifies cart during checkout");
                 flows.add("User applies discount code");
-                break;
-            case "contact":
+            }
+            case "contact" -> {
                 flows.add("User fills contact form and submits successfully");
                 flows.add("User submits form with invalid email");
                 flows.add("User exceeds character limit in message field");
-                break;
-            default:
+            }
+            default -> {
                 flows.add("User interacts with primary form elements");
                 flows.add("User navigates using available links");
+            }
         }
 
-        // Add flows based on specific elements
         for (PageElement el : elements) {
             if ("checkbox".equals(el.getInputType())) {
-                flows.add("User toggles '" + (el.getSemanticName() != null ? el.getSemanticName() : "checkbox")
-                        + "' option");
+                flows.add("User toggles '" + (el.getSemanticName() != null ? el.getSemanticName() : "checkbox") + "' option");
             }
             if ("select".equals(el.getType())) {
-                flows.add("User selects option from '"
-                        + (el.getSemanticName() != null ? el.getSemanticName() : "dropdown") + "'");
+                flows.add("User selects option from '" + (el.getSemanticName() != null ? el.getSemanticName() : "dropdown") + "'");
             }
         }
 
         return flows;
     }
 
-    /**
-     * Identify potential edge cases.
-     */
     private List<String> identifyEdgeCases(String purpose, List<PageElement> elements, List<FormInfo> forms) {
         List<String> edgeCases = new ArrayList<>();
 
-        // General edge cases
         edgeCases.add("Form submission with JavaScript disabled");
         edgeCases.add("Page behavior with slow network connection");
         edgeCases.add("Form submission during network timeout");
 
-        // Based on elements
         for (PageElement el : elements) {
             if (el.getMinLength() != null || el.getMaxLength() != null) {
                 edgeCases.add("Input '" + el.getSemanticName() + "' at min/max character boundary");
@@ -1103,27 +673,20 @@ public class WebPageAnalyzerService {
             }
         }
 
-        // Browser-specific
         edgeCases.add("Cross-browser compatibility (Chrome, Firefox, Safari, Edge)");
         edgeCases.add("Mobile responsive behavior");
 
         return edgeCases;
     }
 
-    /**
-     * Identify security considerations.
-     */
-    private List<String> identifySecurityConsiderations(String purpose, List<PageElement> elements,
-            List<FormInfo> forms) {
+    private List<String> identifySecurityConsiderations(String purpose, List<PageElement> elements, List<FormInfo> forms) {
         List<String> security = new ArrayList<>();
 
-        // Check for CSRF protection
         boolean hasCsrf = forms.stream().anyMatch(FormInfo::isHasCsrfToken);
         if (!hasCsrf && !forms.isEmpty()) {
             security.add("CSRF protection: Forms should include anti-CSRF tokens");
         }
 
-        // Password fields
         boolean hasPassword = elements.stream().anyMatch(e -> "password".equals(e.getInputType()));
         if (hasPassword) {
             security.add("Password handling: Verify password is not logged or exposed");
@@ -1131,11 +694,9 @@ public class WebPageAnalyzerService {
             security.add("SQL injection: Test login fields for injection vulnerabilities");
         }
 
-        // Input validation
         security.add("XSS prevention: Test all input fields for script injection");
         security.add("Input validation: Verify server-side validation exists");
 
-        // Authentication specific
         if ("login".equals(purpose)) {
             security.add("Brute force protection: Verify rate limiting exists");
             security.add("Account enumeration: Error messages should not reveal user existence");
@@ -1148,190 +709,5 @@ public class WebPageAnalyzerService {
         }
 
         return security;
-    }
-
-    // Helper methods
-
-    private String findLabelForElement(WebDriver driver, WebElement element) {
-        String id = element.getAttribute("id");
-        if (id != null && !id.isEmpty()) {
-            try {
-                List<WebElement> labels = driver.findElements(By.cssSelector("label[for='" + id + "']"));
-                if (!labels.isEmpty()) {
-                    return labels.get(0).getText().trim();
-                }
-            } catch (Exception ignored) {
-            }
-        }
-
-        // Try parent label
-        try {
-            WebElement parent = element.findElement(By.xpath("./ancestor::label"));
-            return parent.getText().trim();
-        } catch (Exception ignored) {
-        }
-
-        return null;
-    }
-
-    private PageElement buildPageElementFromWebElement(WebDriver driver, WebElement el, String type) {
-        String inputType = "input".equals(type) ? el.getAttribute("type") : null;
-        String id = el.getAttribute("id");
-        String name = el.getAttribute("name");
-        String placeholder = el.getAttribute("placeholder");
-        String ariaLabel = el.getAttribute("aria-label");
-        String label = findLabelForElement(driver, el);
-
-        return PageElement.builder()
-                .type(type)
-                .inputType(inputType)
-                .id(id)
-                .name(name)
-                .placeholder(placeholder)
-                .ariaLabel(ariaLabel)
-                .label(label)
-                .required(el.getAttribute("required") != null)
-                .validationPattern(el.getAttribute("pattern"))
-                .minLength(parseInteger(el.getAttribute("minlength")))
-                .maxLength(parseInteger(el.getAttribute("maxlength")))
-                .semanticName(inferSemanticName(type, id, name, placeholder, label, ariaLabel))
-                .recommendedLocator(generateRecommendedLocator(el, id, name, ariaLabel, label))
-                .dataAttributes(extractDataAttributes(el))
-                .build();
-    }
-
-    private String inferSemanticName(String type, String id, String name, String placeholder, String label,
-            String ariaLabel) {
-        if (label != null && !label.isEmpty())
-            return label;
-        if (ariaLabel != null && !ariaLabel.isEmpty())
-            return ariaLabel;
-        if (placeholder != null && !placeholder.isEmpty())
-            return placeholder;
-        if (name != null && !name.isEmpty())
-            return humanize(name);
-        if (id != null && !id.isEmpty())
-            return humanize(id);
-        return type + " field";
-    }
-
-    private String inferButtonSemanticName(String text, String id, String name, String ariaLabel) {
-        if (text != null && !text.isEmpty())
-            return text;
-        if (ariaLabel != null && !ariaLabel.isEmpty())
-            return ariaLabel;
-        if (name != null && !name.isEmpty())
-            return humanize(name);
-        if (id != null && !id.isEmpty())
-            return humanize(id);
-        return "button";
-    }
-
-    private String humanize(String text) {
-        if (text == null)
-            return "";
-        return text.replaceAll("([a-z])([A-Z])", "$1 $2")
-                .replaceAll("[_-]", " ")
-                .trim();
-    }
-
-    private String generateRecommendedLocator(WebElement el, String id, String name, String ariaLabel, String text) {
-        if (id != null && !id.isEmpty()) {
-            return "By.id(\"" + id + "\")";
-        }
-        if (ariaLabel != null && !ariaLabel.isEmpty()) {
-            return "By.cssSelector(\"[aria-label='" + ariaLabel + "']\")";
-        }
-        if (name != null && !name.isEmpty()) {
-            return "By.name(\"" + name + "\")";
-        }
-        if (text != null && !text.isEmpty()) {
-            return "By.xpath(\"//*[contains(text(),'" + text + "')]\")";
-        }
-        return "// Custom locator needed";
-    }
-
-    private Map<String, String> extractDataAttributes(WebElement el) {
-        Map<String, String> dataAttrs = new HashMap<>();
-        try {
-            JavascriptExecutor js = (JavascriptExecutor) ((WrapsDriver) el).getWrappedDriver();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> dataset = (Map<String, Object>) js.executeScript(
-                    "return Object.assign({}, arguments[0].dataset)", el);
-            if (dataset != null) {
-                dataset.forEach((k, v) -> dataAttrs.put(k, String.valueOf(v)));
-            }
-        } catch (Exception ignored) {
-        }
-        return dataAttrs;
-    }
-
-    private String inferFormPurpose(String id, String name, String action, List<PageElement> fields) {
-        String combined = ((id != null ? id : "") + " " + (name != null ? name : "") + " "
-                + (action != null ? action : "")).toLowerCase();
-
-        if (containsAny(combined, LOGIN_INDICATORS))
-            return "login";
-        if (containsAny(combined, SIGNUP_INDICATORS))
-            return "registration";
-        if (containsAny(combined, SEARCH_INDICATORS))
-            return "search";
-        if (containsAny(combined, CONTACT_INDICATORS))
-            return "contact";
-
-        // Check fields
-        boolean hasPassword = fields.stream().anyMatch(f -> "password".equals(f.getInputType()));
-        boolean hasEmail = fields.stream().anyMatch(f -> "email".equals(f.getInputType()));
-
-        if (hasPassword && hasEmail) {
-            if (fields.stream().anyMatch(f -> f.getName() != null && f.getName().toLowerCase().contains("confirm"))) {
-                return "registration";
-            }
-            return "login";
-        }
-
-        return "general";
-    }
-
-    private String inferLinkPurpose(String text, String href) {
-        String combined = (text + " " + href).toLowerCase();
-        if (containsAny(combined, LOGIN_INDICATORS))
-            return "authentication";
-        if (containsAny(combined, SIGNUP_INDICATORS))
-            return "registration";
-        if (combined.contains("logout") || combined.contains("sign out"))
-            return "logout";
-        if (combined.contains("home"))
-            return "home navigation";
-        if (combined.contains("about"))
-            return "about page";
-        if (combined.contains("contact"))
-            return "contact page";
-        if (combined.contains("help") || combined.contains("faq"))
-            return "help/support";
-        return "navigation";
-    }
-
-    private String extractDomain(String url) {
-        try {
-            java.net.URL parsed = new java.net.URL(url);
-            return parsed.getHost();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private boolean containsAny(String text, Set<String> indicators) {
-        return indicators.stream().anyMatch(text::contains);
-    }
-
-    private Integer parseInteger(String value) {
-        if (value == null || value.isEmpty())
-            return null;
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }
