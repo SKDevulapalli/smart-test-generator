@@ -43,8 +43,10 @@ public class WebPageAnalyzerService {
             System.out.println("[WebPageAnalyzer] Fetching page: " + url);
 
             // Use JSoup to fetch and parse the page
+            // Request English content to avoid geo-localized pages
             Document doc = Jsoup.connect(url)
                     .userAgent(USER_AGENT)
+                    .header("Accept-Language", "en-US,en;q=0.9")
                     .timeout(30000)
                     .followRedirects(true)
                     .get();
