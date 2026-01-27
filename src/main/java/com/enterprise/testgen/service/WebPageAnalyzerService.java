@@ -88,16 +88,25 @@ public class WebPageAnalyzerService {
                 } else if (httpUrl.startsWith("ws://")) {
                     httpUrl = httpUrl.replace("ws://", "http://");
                 }
-                // Browserless.io uses /webdriver endpoint for Selenium WebDriver protocol
-                if (httpUrl.contains("browserless.io") && !httpUrl.contains("/webdriver")) {
-                    // Handle URLs with and without query parameters
-                    int queryIndex = httpUrl.indexOf("?");
-                    if (queryIndex > 0) {
-                        // Insert /webdriver before the query string
-                        httpUrl = httpUrl.substring(0, queryIndex) + "/webdriver" + httpUrl.substring(queryIndex);
-                    } else {
-                        // No query params, just append /webdriver
-                        httpUrl = httpUrl + "/webdriver";
+
+                // Handle Browserless.io URL format
+                if (httpUrl.contains("browserless.io")) {
+                    // Convert legacy chrome.browserless.io to regional endpoint
+                    if (httpUrl.contains("chrome.browserless.io")) {
+                        httpUrl = httpUrl.replace("chrome.browserless.io", "production-sfo.browserless.io");
+                        System.out.println("[WebPageAnalyzer] Converted legacy domain to regional endpoint");
+                    }
+
+                    // Ensure /webdriver endpoint is present
+                    if (!httpUrl.contains("/webdriver")) {
+                        int queryIndex = httpUrl.indexOf("?");
+                        if (queryIndex > 0) {
+                            // Insert /webdriver before the query string
+                            httpUrl = httpUrl.substring(0, queryIndex) + "/webdriver" + httpUrl.substring(queryIndex);
+                        } else {
+                            // No query params, just append /webdriver
+                            httpUrl = httpUrl + "/webdriver";
+                        }
                     }
                 }
                 System.out.println("[WebPageAnalyzer] Connecting to: " + httpUrl);
