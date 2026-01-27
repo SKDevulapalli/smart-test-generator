@@ -34,26 +34,22 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Chrome 131 (stable version with known working ChromeDriver)
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && dpkg -i google-chrome-stable_current_amd64.deb || apt-get install -fy \
-    && rm google-chrome-stable_current_amd64.deb
+# Install specific Chrome version (132) and matching ChromeDriver
+RUN wget -q https://storage.googleapis.com/chrome-for-testing-public/132.0.6834.83/linux64/chrome-linux64.zip -O /tmp/chrome.zip \
+    && unzip /tmp/chrome.zip -d /opt \
+    && ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome \
+    && rm /tmp/chrome.zip
 
-# Get Chrome version and install matching ChromeDriver
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1) \
-    && echo "Chrome major version: $CHROME_VERSION" \
-    && wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}.0.6778.204/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
-    || wget -q "https://storage.googleapis.com/chrome-for-testing-public/131.0.6778.204/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
+RUN wget -q https://storage.googleapis.com/chrome-for-testing-public/132.0.6834.83/linux64/chromedriver-linux64.zip -O /tmp/chromedriver.zip \
     && unzip /tmp/chromedriver.zip -d /tmp \
     && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
     && chmod +x /usr/local/bin/chromedriver \
     && rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64
 
 # Verify installations
-RUN echo "Chrome version:" && google-chrome --version \
-    && echo "ChromeDriver version:" && chromedriver --version \
-    && echo "Chrome path:" && which google-chrome \
-    && echo "ChromeDriver path:" && which chromedriver
+RUN echo "Chrome path: $(which google-chrome)" \
+    && echo "ChromeDriver path: $(which chromedriver)" \
+    && chromedriver --version
 
 # Set environment variables
 ENV CHROME_BIN=/usr/bin/google-chrome
