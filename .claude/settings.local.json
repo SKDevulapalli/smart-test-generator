@@ -13,7 +13,9 @@
       "Bash(mvn clean spring-boot:run:*)",
       "Bash(cmd //c \"taskkill /PID 32828 /F\")",
       "Bash(cmd //c \"taskkill /PID 60564 /F\")",
-      "Bash(cmd //c \"taskkill /PID 55596 /F\")"
+      "Bash(cmd //c \"taskkill /PID 55596 /F\")",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }

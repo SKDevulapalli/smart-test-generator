@@ -63,8 +63,9 @@ public class WebPageAnalyzerService {
         // Possible Chrome binary paths (in order of preference)
         String[] possibleChromePaths = {
             chromeBinPath,
-            "/usr/bin/google-chrome-stable",
             "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/opt/google/chrome/chrome",
             "/usr/bin/chromium-browser",
             "/usr/bin/chromium"
         };
