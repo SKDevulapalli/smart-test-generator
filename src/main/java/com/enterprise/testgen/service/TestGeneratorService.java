@@ -364,10 +364,13 @@ public class TestGeneratorService {
         if (title == null || title.isEmpty()) {
             return "test_scenario_" + index;
         }
-        return "test_" + title.toLowerCase()
+        String cleaned = title.toLowerCase()
                 .replaceAll("[^a-z0-9]+", "_")
-                .replaceAll("^_|_$", "")
-                .substring(0, Math.min(50, title.length()));
+                .replaceAll("^_|_$", "");
+        if (cleaned.isEmpty()) {
+            return "test_scenario_" + index;
+        }
+        return "test_" + cleaned.substring(0, Math.min(50, cleaned.length()));
     }
 
     private String generateClassName(String title, int index) {
@@ -962,9 +965,12 @@ public class TestGeneratorService {
     }
 
     private String toVariableName(String text) {
-        return text.replaceAll("[^a-zA-Z0-9]", "")
-                .replaceAll("^\\d+", "")
-                .substring(0, Math.min(20, text.replaceAll("[^a-zA-Z0-9]", "").length()));
+        String cleaned = text.replaceAll("[^a-zA-Z0-9]", "")
+                .replaceAll("^\\d+", "");
+        if (cleaned.isEmpty()) {
+            return "element";
+        }
+        return cleaned.substring(0, Math.min(20, cleaned.length()));
     }
 
     private String escapeJavaString(String s) {
