@@ -41,7 +41,10 @@ const state = {
     generateUtilities: true,
     // Copilot/AI state
     useCopilot: false,
-    copilotEnabled: false
+    copilotEnabled: false,
+    // Ollama (local AI) state
+    ollamaAvailable: false,
+    ollamaModel: 'llama3.2'
 };
 
 // DOM Elements
@@ -74,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initResultsNavLink();
     initCopilotToggle();
     initUrlAnalysis();
+    initOllamaStatus();
 });
 
 // Theme Toggle
@@ -1066,6 +1070,131 @@ function capitalizeFirst(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// ==========================================
+// OLLAMA (LOCAL AI) INTEGRATION
+// ==========================================
+
+// Check Ollama status on page load
+async function initOllamaStatus() {
+    try {
+        const response = await fetch('/api/ai/status');
+        const status = await response.json();
+
+        state.ollamaAvailable = status.available;
+        state.ollamaModel = status.model || 'llama3.2';
+
+        // Update UI to show AI status
+        updateAiStatusIndicator(status);
+
+        if (status.available) {
+            console.log('[AI] Ollama available with model:', status.model);
+        } else {
+            console.log('[AI] Ollama not available:', status.message);
+        }
+    } catch (e) {
+        console.log('[AI] Could not check Ollama status:', e.message);
+        state.ollamaAvailable = false;
+    }
+}
+
+// Update AI status indicator in the UI
+function updateAiStatusIndicator(status) {
+    // Add AI status to the BDD panel header if available
+    const bddHeader = document.querySelector('.bdd-header .bdd-actions');
+    if (!bddHeader) return;
+
+    // Remove existing AI indicator
+    const existing = bddHeader.querySelector('.ai-status-indicator');
+    if (existing) existing.remove();
+
+    // Create AI indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'ai-status-indicator';
+
+    if (status.available) {
+        indicator.innerHTML = `
+            <button class="icon-btn ai-enhance-btn" id="enhanceWithAiBtn" title="Enhance scenarios with local AI (${status.model})">
+                <i class="bi bi-stars"></i>
+            </button>
+        `;
+        indicator.querySelector('.ai-enhance-btn').addEventListener('click', enhanceBddWithAi);
+    } else {
+        indicator.innerHTML = `
+            <span class="ai-offline" title="Local AI not available - Install Ollama to enable">
+                <i class="bi bi-robot"></i>
+            </span>
+        `;
+    }
+
+    bddHeader.insertBefore(indicator, bddHeader.firstChild);
+}
+
+// Enhance BDD scenarios with local AI
+async function enhanceBddWithAi() {
+    const bddOutput = document.getElementById('bddOutput');
+    const enhanceBtn = document.getElementById('enhanceWithAiBtn');
+
+    if (!bddOutput || !state.ollamaAvailable) {
+        showToast('AI enhancement not available', 'error');
+        return;
+    }
+
+    const currentScenarios = bddOutput.dataset.rawContent || bddOutput.textContent;
+    if (!currentScenarios || currentScenarios.trim() === '') {
+        showToast('No scenarios to enhance - analyze a page first', 'error');
+        return;
+    }
+
+    // Show loading state
+    const originalHtml = enhanceBtn.innerHTML;
+    enhanceBtn.innerHTML = '<div class="spinner-small"></div>';
+    enhanceBtn.disabled = true;
+    showToast('Enhancing with local AI...', 'info');
+
+    try {
+        const pageContext = `Page: ${document.getElementById('pagePurpose')?.textContent || 'Unknown'}
+Elements: ${document.getElementById('elementsCount')?.textContent || '0'}
+Forms: ${document.getElementById('formsCount')?.textContent || '0'}`;
+
+        const response = await fetch('/api/ai/enhance-bdd', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                scenarios: currentScenarios,
+                context: pageContext
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.enhanced && data.scenarios) {
+            // Update the BDD output with enhanced scenarios
+            bddOutput.dataset.rawContent = data.scenarios;
+            highlightGherkin(bddOutput, data.scenarios);
+            showToast('BDD scenarios enhanced with AI!', 'success');
+
+            // Update scenario count if it changed
+            const newCount = (data.scenarios.match(/Scenario:/g) || []).length;
+            const scenarioCount = document.getElementById('scenarioCount');
+            if (scenarioCount) {
+                scenarioCount.textContent = newCount;
+            }
+        } else {
+            showToast(data.message || 'AI enhancement returned no changes', 'info');
+        }
+    } catch (error) {
+        console.error('AI enhancement error:', error);
+        showToast('Error enhancing with AI: ' + error.message, 'error');
+    } finally {
+        // Restore button
+        enhanceBtn.innerHTML = originalHtml;
+        enhanceBtn.disabled = false;
+    }
+}
+
 // Export functions for use in HTML
 window.generateTests = generateTests;
 window.analyzeUrl = analyzeUrl;
+window.enhanceBddWithAi = enhanceBddWithAi;

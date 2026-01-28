@@ -3274,3 +3274,83 @@ body {
         justify-content: center;
     }
 }
+
+/* ==========================================
+   AI STATUS & ENHANCEMENT
+   ========================================== */
+
+.ai-status-indicator {
+    display: flex;
+    align-items: center;
+    margin-right: 0.5rem;
+}
+
+.ai-enhance-btn {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.ai-enhance-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.ai-enhance-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.ai-enhance-btn i {
+    font-size: 1rem;
+}
+
+.ai-offline {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0.5;
+}
+
+.ai-offline i {
+    font-size: 1rem;
+}
+
+/* Small spinner for AI button */
+.spinner-small {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* AI Badge in header */
+.ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ai-badge.offline {
+    background: var(--text-muted);
+    opacity: 0.5;
+}

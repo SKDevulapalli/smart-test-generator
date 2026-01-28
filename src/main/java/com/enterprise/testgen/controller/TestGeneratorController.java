@@ -36,6 +36,9 @@ public class TestGeneratorController {
     @Autowired
     private BDDScenarioGeneratorService bddGenerator;
 
+    @Autowired
+    private OllamaService ollamaService;
+
     /**
      * Main page
      */
@@ -294,6 +297,65 @@ public class TestGeneratorController {
                 "Intelligent element locators"
         ));
         return ResponseEntity.ok(status);
+    }
+
+    /**
+     * Check Ollama (local LLM) status.
+     */
+    @GetMapping("/api/ai/status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> aiStatus() {
+        Map<String, Object> status = ollamaService.getStatus();
+        status.put("features", List.of(
+                "AI-enhanced BDD scenarios",
+                "Smart edge case detection",
+                "Improved test suggestions",
+                "Local processing - data stays on-premises"
+        ));
+        return ResponseEntity.ok(status);
+    }
+
+    /**
+     * Enhance BDD scenarios with AI (optional endpoint).
+     */
+    @PostMapping("/api/ai/enhance-bdd")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> enhanceBddWithAI(@RequestBody Map<String, String> payload) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            String scenarios = payload.get("scenarios");
+            String pageContext = payload.getOrDefault("context", "");
+
+            if (!ollamaService.isAvailable()) {
+                result.put("success", false);
+                result.put("enhanced", false);
+                result.put("scenarios", scenarios);
+                result.put("message", "AI not available. Ollama is not running or not configured.");
+                return ResponseEntity.ok(result);
+            }
+
+            String enhanced = ollamaService.enhanceBddScenarios(pageContext, scenarios);
+
+            if (enhanced != null && !enhanced.isEmpty()) {
+                result.put("success", true);
+                result.put("enhanced", true);
+                result.put("scenarios", enhanced);
+                result.put("message", "Scenarios enhanced with AI");
+            } else {
+                result.put("success", true);
+                result.put("enhanced", false);
+                result.put("scenarios", scenarios);
+                result.put("message", "AI returned empty response, using original scenarios");
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(result);
+        }
     }
 
     /**
