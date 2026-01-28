@@ -147,6 +147,104 @@ public class WebPageAnalyzerService {
     }
 
     /**
+     * Analyze HTML content directly (for pasted HTML - fallback for blocked sites).
+     */
+    public PageAnalysis analyzeHtml(String html, String sourceUrl) {
+        long startTime = System.currentTimeMillis();
+        List<String> warnings = new ArrayList<>();
+
+        try {
+            System.out.println("[WebPageAnalyzer] Analyzing pasted HTML from: " + sourceUrl);
+
+            // Parse the HTML string directly
+            Document doc = Jsoup.parse(html);
+
+            // If sourceUrl is provided, set it as the base URI for resolving relative links
+            if (sourceUrl != null && sourceUrl.startsWith("http")) {
+                doc.setBaseUri(sourceUrl);
+            }
+
+            String title = doc.title();
+            if (title == null || title.isEmpty()) {
+                title = "Pasted HTML Content";
+            }
+            String pageSource = doc.html().toLowerCase();
+
+            System.out.println("[WebPageAnalyzer] HTML parsed successfully: " + title);
+
+            // Extract elements
+            List<PageElement> elements = extractElements(doc);
+            List<FormInfo> forms = extractForms(doc);
+            List<LinkInfo> links = extractLinks(doc, sourceUrl != null ? sourceUrl : "");
+
+            // Infer page purpose
+            String pagePurpose = inferPagePurpose(title, pageSource, elements, forms);
+            String pageDescription = generatePageDescription(pagePurpose, forms, elements);
+
+            // Infer user flows and edge cases
+            List<String> inferredFlows = inferUserFlows(pagePurpose, forms, elements);
+            List<String> edgeCases = identifyEdgeCases(pagePurpose, elements, forms);
+            List<String> securityConsiderations = identifySecurityConsiderations(pagePurpose, elements, forms);
+
+            // Add note about source
+            warnings.add("Note: Analysis based on pasted HTML. Some dynamic JavaScript content may not be included.");
+
+            // Add note about JavaScript if detected
+            if (pageSource.contains("<script") || pageSource.contains("react") ||
+                pageSource.contains("angular") || pageSource.contains("vue")) {
+                warnings.add("This page uses JavaScript frameworks. Dynamic content rendered by JavaScript was not captured.");
+            }
+
+            long analysisTime = System.currentTimeMillis() - startTime;
+
+            return PageAnalysis.builder()
+                    .url(sourceUrl != null ? sourceUrl : "pasted-html")
+                    .title(title)
+                    .pagePurpose(pagePurpose)
+                    .pageDescription(pageDescription)
+                    .elements(elements)
+                    .forms(forms)
+                    .navigationLinks(links)
+                    .inferredFlows(inferredFlows)
+                    .edgeCases(edgeCases)
+                    .securityConsiderations(securityConsiderations)
+                    .metadata(AnalysisMetadata.builder()
+                            .analysisTimeMs(analysisTime)
+                            .totalElements(elements.size())
+                            .totalForms(forms.size())
+                            .totalLinks(links.size())
+                            .browser("JSoup HTML Parser (from pasted content)")
+                            .viewport("N/A (static analysis)")
+                            .warnings(warnings)
+                            .build())
+                    .build();
+
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            warnings.add("Error: " + errorMessage);
+
+            System.err.println("[WebPageAnalyzer] Error analyzing pasted HTML");
+            System.err.println("[WebPageAnalyzer] Message: " + errorMessage);
+
+            return PageAnalysis.builder()
+                    .url(sourceUrl != null ? sourceUrl : "pasted-html")
+                    .pagePurpose("error")
+                    .pageDescription("Failed to parse HTML: " + (errorMessage != null ? errorMessage : "Unknown error"))
+                    .elements(Collections.emptyList())
+                    .forms(Collections.emptyList())
+                    .navigationLinks(Collections.emptyList())
+                    .inferredFlows(Collections.emptyList())
+                    .edgeCases(Collections.emptyList())
+                    .securityConsiderations(Collections.emptyList())
+                    .metadata(AnalysisMetadata.builder()
+                            .analysisTimeMs(System.currentTimeMillis() - startTime)
+                            .warnings(warnings)
+                            .build())
+                    .build();
+        }
+    }
+
+    /**
      * Extract all interactive elements from the page.
      */
     private List<PageElement> extractElements(Document doc) {

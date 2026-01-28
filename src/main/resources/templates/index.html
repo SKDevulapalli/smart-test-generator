@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kade Test Gen - Enterprise Test Automation</title>
-    <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -63,8 +63,20 @@
                  ===================================================== -->
             <div class="mode-content active" data-mode="analyze">
                 <div class="analyze-section">
-                    <!-- URL Input -->
-                    <div class="url-input-section">
+                    <!-- Input Method Toggle -->
+                    <div class="analyze-input-toggle">
+                        <button class="analyze-method-btn active" data-method="url">
+                            <i class="bi bi-link-45deg"></i>
+                            <span>Analyze URL</span>
+                        </button>
+                        <button class="analyze-method-btn" data-method="html">
+                            <i class="bi bi-code-slash"></i>
+                            <span>Paste HTML</span>
+                        </button>
+                    </div>
+
+                    <!-- URL Input Method -->
+                    <div class="analyze-method-content active" data-method="url">
                         <div class="url-input-wrapper">
                             <i class="bi bi-link-45deg url-icon"></i>
                             <input type="text" class="url-input" id="liveUrlInput"
@@ -75,6 +87,30 @@
                             </button>
                         </div>
                         <p class="url-hint">We'll analyze the page DOM and generate BDD scenarios based on actual elements found</p>
+                    </div>
+
+                    <!-- HTML Paste Method (Fallback for blocked sites) -->
+                    <div class="analyze-method-content" data-method="html" style="display: none;">
+                        <div class="html-paste-section">
+                            <textarea class="html-input" id="htmlPasteInput"
+                                      placeholder="Paste the page HTML here...
+
+To get the HTML:
+1. Open the page in your browser
+2. Right-click and select 'View Page Source' (or press Ctrl+U)
+3. Copy all the HTML and paste it here
+
+This is useful for sites that block automated requests."></textarea>
+                            <div class="html-paste-footer">
+                                <input type="text" class="html-url-input" id="htmlSourceUrl"
+                                       placeholder="Source URL (optional, for reference)">
+                                <button class="btn btn-primary btn-analyze" id="analyzeHtmlBtn">
+                                    <i class="bi bi-search"></i>
+                                    <span>Analyze HTML</span>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="url-hint"><i class="bi bi-info-circle"></i> Use this when a site blocks automated requests (403 errors)</p>
                     </div>
 
                     <!-- Analysis Progress -->

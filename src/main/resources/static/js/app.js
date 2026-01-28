@@ -727,6 +727,9 @@ function initUrlAnalysis() {
     const copyBddBtn = document.getElementById('copyBddBtn');
     const downloadBddBtn = document.getElementById('downloadBddBtn');
 
+    // Initialize analyze method toggle (URL vs HTML paste)
+    initAnalyzeMethodToggle();
+
     if (analyzeBtn && urlInput) {
         analyzeBtn.addEventListener('click', () => analyzeUrl());
 
@@ -736,6 +739,12 @@ function initUrlAnalysis() {
                 analyzeUrl();
             }
         });
+    }
+
+    // HTML paste analysis button
+    const analyzeHtmlBtn = document.getElementById('analyzeHtmlBtn');
+    if (analyzeHtmlBtn) {
+        analyzeHtmlBtn.addEventListener('click', () => analyzeHtml());
     }
 
     if (copyBddBtn) {
@@ -810,6 +819,98 @@ function stopProgressAnimation() {
     if (progressInterval) {
         clearInterval(progressInterval);
         progressInterval = null;
+    }
+}
+
+// Toggle between URL and HTML paste methods
+function initAnalyzeMethodToggle() {
+    const methodBtns = document.querySelectorAll('.analyze-method-btn');
+    const methodContents = document.querySelectorAll('.analyze-method-content');
+
+    methodBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const method = btn.dataset.method;
+
+            // Update button styles
+            methodBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Show/hide content
+            methodContents.forEach(content => {
+                if (content.dataset.method === method) {
+                    content.classList.add('active');
+                    content.style.display = 'block';
+                } else {
+                    content.classList.remove('active');
+                    content.style.display = 'none';
+                }
+            });
+        });
+    });
+}
+
+// Analyze pasted HTML (fallback for blocked sites)
+async function analyzeHtml() {
+    const htmlInput = document.getElementById('htmlPasteInput');
+    const sourceUrlInput = document.getElementById('htmlSourceUrl');
+    const progressDiv = document.getElementById('analysisProgress');
+    const resultsDiv = document.getElementById('analysisResults');
+
+    const html = htmlInput.value.trim();
+    if (!html) {
+        showToast('Please paste HTML content to analyze', 'error');
+        return;
+    }
+
+    // Basic validation - should look like HTML
+    if (!html.includes('<') || !html.includes('>')) {
+        showToast('The content doesn\'t appear to be valid HTML', 'error');
+        return;
+    }
+
+    const sourceUrl = sourceUrlInput.value.trim() || 'pasted-html';
+
+    // Show progress, hide results
+    progressDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+
+    // Start animated progress messages
+    startProgressAnimation();
+
+    try {
+        const response = await fetch('/api/analyze/html', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                html: html,
+                sourceUrl: sourceUrl
+            })
+        });
+
+        const data = await response.json();
+
+        // Stop progress animation
+        stopProgressAnimation();
+
+        if (data.success) {
+            displayUrlAnalysisResults(data);
+            showToast(`Analysis complete: ${data.scenarioCount} BDD scenarios generated!`, 'success');
+        } else {
+            if (data.bddScenarios) {
+                displayUrlAnalysisResults(data);
+                showToast(data.error || 'Analysis encountered issues', 'error');
+            } else {
+                showToast(data.error || 'Analysis failed', 'error');
+                progressDiv.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('HTML analysis error:', error);
+        stopProgressAnimation();
+        showToast('Error analyzing HTML: ' + error.message, 'error');
+        progressDiv.style.display = 'none';
     }
 }
 

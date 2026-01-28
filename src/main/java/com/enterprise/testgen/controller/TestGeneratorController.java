@@ -370,6 +370,74 @@ public class TestGeneratorController {
     }
 
     /**
+     * Analyze pasted HTML content and generate BDD scenarios.
+     * Fallback for sites that block automated requests.
+     */
+    @PostMapping("/api/analyze/html")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> analyzeHtml(@RequestBody Map<String, String> payload) {
+        Map<String, Object> result = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+
+        try {
+            String html = payload.get("html");
+            String sourceUrl = payload.getOrDefault("sourceUrl", "pasted-html");
+
+            if (html == null || html.isEmpty()) {
+                result.put("success", false);
+                result.put("error", "HTML content is required");
+                return ResponseEntity.badRequest().body(result);
+            }
+
+            // Analyze the HTML content directly
+            PageAnalysis analysis = webPageAnalyzer.analyzeHtml(html, sourceUrl);
+
+            // Check if analysis encountered an error
+            boolean isError = "error".equals(analysis.getPagePurpose());
+
+            // Generate BDD scenarios
+            BDDScenario bddScenario = bddGenerator.generateScenarios(analysis);
+            String gherkinOutput = bddScenario.toGherkin();
+
+            result.put("success", !isError);
+            result.put("url", sourceUrl);
+            result.put("analysis", Map.of(
+                    "title", analysis.getTitle() != null ? analysis.getTitle() : "",
+                    "pagePurpose", analysis.getPagePurpose(),
+                    "pageDescription", analysis.getPageDescription(),
+                    "totalElements", analysis.getMetadata().getTotalElements(),
+                    "totalForms", analysis.getMetadata().getTotalForms(),
+                    "totalLinks", analysis.getMetadata().getTotalLinks(),
+                    "analysisTimeMs", analysis.getMetadata().getAnalysisTimeMs()
+            ));
+            result.put("elements", analysis.getElements());
+            result.put("forms", analysis.getForms());
+            result.put("inferredFlows", analysis.getInferredFlows());
+            result.put("edgeCases", analysis.getEdgeCases());
+            result.put("securityConsiderations", analysis.getSecurityConsiderations());
+            result.put("bddScenarios", gherkinOutput);
+            result.put("scenarioCount", bddScenario.getScenarios() != null ? bddScenario.getScenarios().size() : 0);
+            result.put("totalTimeMs", System.currentTimeMillis() - startTime);
+
+            if (analysis.getMetadata().getWarnings() != null && !analysis.getMetadata().getWarnings().isEmpty()) {
+                result.put("warnings", analysis.getMetadata().getWarnings());
+            }
+
+            if (isError) {
+                result.put("error", analysis.getPageDescription());
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", "Error analyzing HTML: " + e.getMessage());
+            result.put("exception", e.getClass().getSimpleName());
+            return ResponseEntity.badRequest().body(result);
+        }
+    }
+
+    /**
      * Get page analysis details (elements, forms, etc.) without BDD generation.
      */
     @GetMapping("/api/analyze/details")
