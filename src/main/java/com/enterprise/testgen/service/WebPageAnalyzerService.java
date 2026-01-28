@@ -40,13 +40,17 @@ public class WebPageAnalyzerService {
         List<String> warnings = new ArrayList<>();
 
         try {
-            System.out.println("[WebPageAnalyzer] Fetching page: " + url);
+            // Normalize URL to force English for Google (which ignores Accept-Language based on IP)
+            String normalizedUrl = normalizeUrlForEnglish(url);
+            System.out.println("[WebPageAnalyzer] Fetching page: " + normalizedUrl);
 
             // Use JSoup to fetch and parse the page
             // Request English content to avoid geo-localized pages
-            Document doc = Jsoup.connect(url)
+            Document doc = Jsoup.connect(normalizedUrl)
                     .userAgent(USER_AGENT)
                     .header("Accept-Language", "en-US,en;q=0.9")
+                    .cookie("PREF", "hl=en")  // Google language preference cookie
+                    .cookie("NID", "")  // Clear Google geo cookie
                     .timeout(30000)
                     .followRedirects(true)
                     .get();
@@ -711,5 +715,30 @@ public class WebPageAnalyzerService {
         }
 
         return security;
+    }
+
+    /**
+     * Normalize URL to force English content for sites that geo-localize.
+     * Google ignores Accept-Language header and uses IP geolocation,
+     * so we need to add hl=en parameter or use google.com/ncr.
+     */
+    private String normalizeUrlForEnglish(String url) {
+        try {
+            java.net.URL parsed = new java.net.URL(url);
+            String host = parsed.getHost().toLowerCase();
+
+            // Google: add hl=en parameter to force English
+            if (host.contains("google.")) {
+                String separator = url.contains("?") ? "&" : "?";
+                // Only add if hl parameter not already present
+                if (!url.contains("hl=")) {
+                    return url + separator + "hl=en";
+                }
+            }
+
+            return url;
+        } catch (Exception e) {
+            return url;
+        }
     }
 }
